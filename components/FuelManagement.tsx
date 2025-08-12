@@ -8,8 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Textarea } from "./ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { Plus, Fuel, TrendingUp, TrendingDown, Calendar, Calculator, CreditCard, Wallet, AlertTriangle, CheckCircle, Settings } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { Plus, Fuel, TrendingUp, Calculator, CreditCard, Wallet, CheckCircle, Settings } from 'lucide-react';
+
 import { apiService } from '../utils/apiService';
 
 interface FuelRecord {

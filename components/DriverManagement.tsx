@@ -49,7 +49,6 @@ export function DriverManagement() {
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddDriverDialogOpen, setIsAddDriverDialogOpen] = useState(false);
-  const [isEditDriverDialogOpen, setIsEditDriverDialogOpen] = useState(false);
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [isCredentialsDialogOpen, setIsCredentialsDialogOpen] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
@@ -626,130 +625,215 @@ export function DriverManagement() {
       </div>
 
       {/* Enhanced Tabs Section */}
-      <Card className="bg-white shadow-xl border border-gray-200">
-        <CardContent className="p-6">
+      <Card className="bg-white shadow-xl border-0 bg-gradient-to-br from-white to-gray-50">
+        <CardContent className="p-0">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2 bg-gray-100 p-1 rounded-lg">
-              <TabsTrigger value="drivers" className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                <Users className="h-4 w-4" />
-                Drivers ({drivers.length})
-              </TabsTrigger>
-              <TabsTrigger value="assignments" className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                <Car className="h-4 w-4" />
-                Vehicle Assignments
-              </TabsTrigger>
-            </TabsList>
+            <div className="bg-gradient-to-r from-green-600 to-emerald-700 p-6 rounded-t-lg">
+              <TabsList className="grid w-full grid-cols-2 bg-white/20 backdrop-blur-sm p-1 rounded-lg">
+                <TabsTrigger 
+                  value="drivers" 
+                  className="flex items-center gap-2 text-white data-[state=active]:bg-white data-[state=active]:text-green-700 data-[state=active]:shadow-sm transition-all duration-200"
+                >
+                  <Users className="h-4 w-4" />
+                  Drivers ({drivers.length})
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="assignments" 
+                  className="flex items-center gap-2 text-white data-[state=active]:bg-white data-[state=active]:text-green-700 data-[state=active]:shadow-sm transition-all duration-200"
+                >
+                  <Car className="h-4 w-4" />
+                  Vehicle Assignments
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
-            <TabsContent value="drivers" className="space-y-6 mt-6">
-              <div className="grid gap-6">
-                {drivers.length === 0 ? (
-                  <Card className="bg-gradient-to-br from-gray-50 to-green-50 border-2 border-gray-200 shadow-xl">
-                    <CardContent className="py-12 text-center">
-                      <div className="p-4 bg-gray-100 rounded-full w-fit mx-auto mb-4">
-                        <Users className="h-16 w-16 text-gray-400" />
-                      </div>
-                      <h3 className="text-xl font-semibold text-gray-700 mb-2">No Drivers Found</h3>
-                      <p className="text-gray-600">Add your first driver to get started with driver management.</p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  drivers.map((driver) => {
+            <div className="p-6">
+              <TabsContent value="drivers" className="space-y-6 mt-0">
+                <div className="grid gap-6">
+                  {drivers.length === 0 ? (
+                    <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 shadow-xl">
+                      <CardContent className="py-12 text-center">
+                        <div className="p-4 bg-green-100 rounded-full w-fit mx-auto mb-4">
+                          <Users className="h-16 w-16 text-green-600" />
+                        </div>
+                        <h3 className="text-xl font-semibold text-green-800 mb-2">No Drivers Found</h3>
+                        <p className="text-green-700">Add your first driver to get started with driver management.</p>
+                        <p className="text-sm text-green-600 mt-2">Click "Add Driver" to register a new driver</p>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    drivers.map((driver, index) => {
                     const currentAssignment = getCurrentAssignment(driver.id);
                 const assignedVehicle = currentAssignment ? getVehicleById(currentAssignment.vehicleId) : null;
                 const licenseExpiringSoon = isLicenseExpiringSoon(driver.licenseExpiryDate);
 
                 return (
-                  <Card key={driver.id} className="hover:shadow-md transition-shadow">
-                    <CardHeader className="pb-3">
+                  <Card 
+                    key={driver.id} 
+                    className={`hover:shadow-xl transition-all duration-300 border-0 shadow-lg ${
+                      index % 2 === 0 
+                        ? 'bg-gradient-to-br from-white to-green-50/30' 
+                        : 'bg-gradient-to-br from-white to-blue-50/30'
+                    }`}
+                  >
+                    <CardHeader className="pb-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-t-lg border-b border-gray-200">
                       <div className="flex items-center justify-between">
-                        <div>
-                          <CardTitle className="text-lg">{driver.name}</CardTitle>
-                          <p className="text-sm text-gray-600">{driver.employeeId}</p>
-                          {driver.username && (
-                            <p className="text-xs text-gray-500 flex items-center gap-1">
-                              <Key className="h-3 w-3" />
-                              Username: {driver.username}
-                            </p>
-                          )}
+                        <div className="flex items-center gap-3">
+                          <div className="p-3 bg-green-600 rounded-lg shadow-md">
+                            <Users className="h-6 w-6 text-white" />
+                          </div>
+                          <div>
+                            <CardTitle className="text-xl font-bold text-gray-800">{driver.name}</CardTitle>
+                            <p className="text-sm text-gray-600 font-medium">ID: {driver.employeeId}</p>
+                            {driver.username && (
+                              <p className="text-xs text-gray-500 flex items-center gap-1 mt-1">
+                                <Key className="h-3 w-3 text-blue-600" />
+                                <span className="font-mono">{driver.username}</span>
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Badge className={`${getStatusColor(driver.status)} text-white`}>
-                            {driver.status}
+                        <div className="flex flex-col items-end gap-2">
+                          <Badge className={`${getStatusColor(driver.status)} text-white shadow-sm`}>
+                            {driver.status.toUpperCase()}
                           </Badge>
                           {licenseExpiringSoon && (
-                            <Badge className="bg-orange-500 text-white">
+                            <Badge className="bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-sm">
+                              <Calendar className="h-3 w-3 mr-1" />
                               License Expiring Soon
                             </Badge>
                           )}
                         </div>
                       </div>
                     </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div>
-                          <p className="text-sm text-gray-600">Department</p>
-                          <p>{driver.department}</p>
+                    <CardContent className="p-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="p-4 bg-white/60 rounded-lg border border-gray-200 shadow-sm">
+                          <p className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                            <div className="p-1 bg-blue-100 rounded">
+                              <Users className="h-3 w-3 text-blue-600" />
+                            </div>
+                            Department
+                          </p>
+                          <p className="font-medium text-gray-900">{driver.department}</p>
                         </div>
-                        <div>
-                          <p className="text-sm text-gray-600">License</p>
-                          <p>{driver.licenseNumber} (Class {driver.licenseClass})</p>
+                        <div className="p-4 bg-white/60 rounded-lg border border-gray-200 shadow-sm">
+                          <p className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                            <div className="p-1 bg-green-100 rounded">
+                              <Key className="h-3 w-3 text-green-600" />
+                            </div>
+                            License
+                          </p>
+                          <p className="font-medium text-gray-900">{driver.licenseNumber}</p>
+                          <p className="text-xs text-gray-600 mt-1">Class {driver.licenseClass}</p>
                         </div>
-                        <div>
-                          <p className="text-sm text-gray-600">License Expiry</p>
-                          <p className={licenseExpiringSoon ? 'text-orange-600' : ''}>
+                        <div className="p-4 bg-white/60 rounded-lg border border-gray-200 shadow-sm">
+                          <p className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                            <div className="p-1 bg-orange-100 rounded">
+                              <Calendar className="h-3 w-3 text-orange-600" />
+                            </div>
+                            License Expiry
+                          </p>
+                          <p className={`font-medium ${licenseExpiringSoon ? 'text-orange-600' : 'text-gray-900'}`}>
                             {new Date(driver.licenseExpiryDate).toLocaleDateString()}
                           </p>
                         </div>
-                        <div>
-                          <p className="text-sm text-gray-600">Phone</p>
-                          <p className="flex items-center gap-1">
-                            <Phone className="h-3 w-3" />
-                            {driver.phone}
+                        <div className="p-4 bg-white/60 rounded-lg border border-gray-200 shadow-sm">
+                          <p className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                            <div className="p-1 bg-purple-100 rounded">
+                              <Phone className="h-3 w-3 text-purple-600" />
+                            </div>
+                            Phone
                           </p>
+                          <p className="font-medium text-gray-900">{driver.phone}</p>
                         </div>
                         {driver.email && (
-                          <div>
-                            <p className="text-sm text-gray-600">Email</p>
-                            <p className="flex items-center gap-1">
-                              <Mail className="h-3 w-3" />
+                          <div className="p-4 bg-white/60 rounded-lg border border-gray-200 shadow-sm">
+                            <p className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                              <div className="p-1 bg-cyan-100 rounded">
+                                <Mail className="h-3 w-3 text-cyan-600" />
+                              </div>
+                              Email
+                            </p>
+                            <p className="font-medium text-gray-900 truncate" title={driver.email}>
                               {driver.email}
                             </p>
                           </div>
                         )}
-                        <div>
-                          <p className="text-sm text-gray-600">Date Joined</p>
-                          <p className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
+                        <div className="p-4 bg-white/60 rounded-lg border border-gray-200 shadow-sm">
+                          <p className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                            <div className="p-1 bg-indigo-100 rounded">
+                              <Calendar className="h-3 w-3 text-indigo-600" />
+                            </div>
+                            Date Joined
+                          </p>
+                          <p className="font-medium text-gray-900">
                             {new Date(driver.dateJoined).toLocaleDateString()}
                           </p>
                         </div>
                       </div>
 
                       {currentAssignment && assignedVehicle && (
-                        <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                          <p className="text-sm font-medium text-blue-800 mb-1">Currently Assigned Vehicle</p>
-                          <p className="text-sm text-blue-700">
-                            {assignedVehicle.gkNumber} - {assignedVehicle.make} {assignedVehicle.model}
-                          </p>
-                          <p className="text-xs text-blue-600 mt-1">
-                            Assigned: {new Date(currentAssignment.assignmentDate).toLocaleDateString()}
-                            {currentAssignment.purpose && ` | Purpose: ${currentAssignment.purpose}`}
-                          </p>
+                        <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg border-2 border-blue-200 shadow-sm">
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className="p-2 bg-blue-600 rounded-lg">
+                              <Car className="h-4 w-4 text-white" />
+                            </div>
+                            <h4 className="font-semibold text-blue-800">Currently Assigned Vehicle</h4>
+                          </div>
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                            <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
+                              <Car className="h-5 w-5 text-blue-600" />
+                              <div>
+                                <p className="font-semibold text-gray-900">
+                                  {assignedVehicle.gkNumber}
+                                </p>
+                                <p className="text-sm text-gray-600">
+                                  {assignedVehicle.make} {assignedVehicle.model}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
+                              <Calendar className="h-5 w-5 text-blue-600" />
+                              <div>
+                                <p className="text-sm text-gray-600">Assigned</p>
+                                <p className="font-medium text-gray-900">
+                                  {new Date(currentAssignment.assignmentDate).toLocaleDateString()}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          {currentAssignment.purpose && (
+                            <div className="mt-3 p-3 bg-white rounded-lg">
+                              <p className="text-sm text-gray-600">Purpose</p>
+                              <p className="font-medium text-gray-900">{currentAssignment.purpose}</p>
+                            </div>
+                          )}
                         </div>
                       )}
 
                       {driver.notes && (
-                        <div className="mt-4">
-                          <p className="text-sm text-gray-600">Notes</p>
-                          <p className="text-sm">{driver.notes}</p>
+                        <div className="mt-6 p-4 bg-gradient-to-r from-gray-50 to-slate-50 rounded-lg border border-gray-200">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="p-1 bg-gray-200 rounded">
+                              <Edit className="h-3 w-3 text-gray-600" />
+                            </div>
+                            <p className="text-sm font-semibold text-gray-700">Notes</p>
+                          </div>
+                          <p className="text-sm text-gray-900">{driver.notes}</p>
                         </div>
                       )}
 
-                      {/* Login Credentials Section */}
+                      {/* Enhanced Login Credentials Section */}
                       {driver.username && (
-                        <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="text-sm font-medium text-gray-800">Login Credentials</p>
+                        <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border-2 border-green-200">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <div className="p-2 bg-green-600 rounded-lg">
+                                <Key className="h-4 w-4 text-white" />
+                              </div>
+                              <h4 className="font-semibold text-green-800">Login Credentials</h4>
+                            </div>
                             <Button
                               size="sm"
                               variant="outline"
@@ -758,32 +842,33 @@ export function DriverManagement() {
                                 generateNewCredentials();
                                 setIsCredentialsDialogOpen(true);
                               }}
+                              className="border-green-300 text-green-700 hover:bg-green-100"
                             >
                               <RefreshCw className="h-3 w-3 mr-1" />
                               Reset
                             </Button>
                           </div>
-                          <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                              <p className="text-gray-600">Username:</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                            <div className="p-3 bg-white rounded-lg border border-green-200">
+                              <p className="text-green-700 font-medium mb-1">Username:</p>
                               <div className="flex items-center gap-2">
-                                <span className="font-mono">{driver.username}</span>
+                                <span className="font-mono text-gray-900 font-semibold">{driver.username}</span>
                                 <Button
                                   size="sm"
                                   variant="ghost"
                                   onClick={() => copyToClipboard(driver.username!, 'Username')}
-                                  className="h-6 w-6 p-0"
+                                  className="h-6 w-6 p-0 hover:bg-green-100"
                                 >
-                                  <Copy className="h-3 w-3" />
+                                  <Copy className="h-3 w-3 text-green-600" />
                                 </Button>
                               </div>
                             </div>
-                            <div>
-                              <p className="text-gray-600">Password:</p>
+                            <div className="p-3 bg-white rounded-lg border border-green-200">
+                              <p className="text-green-700 font-medium mb-1">Password:</p>
                               <div className="flex items-center gap-2">
-                                <span className="font-mono">••••••••</span>
-                                <Badge variant="secondary" className="text-xs">
-                                  Contact admin for password
+                                <span className="font-mono text-gray-600">••••••••</span>
+                                <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
+                                  Reset to view
                                 </Badge>
                               </div>
                             </div>
@@ -798,15 +883,19 @@ export function DriverManagement() {
           </div>
         </TabsContent>
 
-        <TabsContent value="assignments" className="space-y-4">
-          <Card>
-            <CardContent className="py-8 text-center">
-              <Car className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-              <p className="text-gray-600">Vehicle assignments will be displayed here.</p>
-              <p className="text-sm text-gray-500">Use the "Assign Vehicle" button to create new assignments.</p>
+        <TabsContent value="assignments" className="space-y-4 mt-0">
+          <Card className="bg-gradient-to-br from-blue-50 to-cyan-50 border-2 border-blue-200 shadow-xl">
+            <CardContent className="py-12 text-center">
+              <div className="p-4 bg-blue-100 rounded-full w-fit mx-auto mb-4">
+                <Car className="h-16 w-16 text-blue-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-blue-800 mb-2">Vehicle Assignments</h3>
+              <p className="text-blue-700">Vehicle assignments will be displayed here.</p>
+              <p className="text-sm text-blue-600 mt-2">Use the "Assign Vehicle" button to create new assignments.</p>
             </CardContent>
           </Card>
         </TabsContent>
+            </div>
           </Tabs>
         </CardContent>
       </Card>

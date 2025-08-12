@@ -7,7 +7,7 @@ import { Badge } from "./ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Textarea } from "./ui/textarea";
-import { Plus, ArrowRightLeft, Building, Calendar, MapPin } from 'lucide-react';
+import { Plus, ArrowRightLeft, Calendar, MapPin } from 'lucide-react';
 import { formatDate, formatNumber } from '../utils/helpers';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 

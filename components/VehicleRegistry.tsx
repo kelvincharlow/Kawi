@@ -7,7 +7,7 @@ import { Badge } from "./ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "./ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Textarea } from "./ui/textarea";
-import { Plus, Edit, Eye, Search, Car } from 'lucide-react';
+import { Plus, Edit, Search, Car } from 'lucide-react';
 import { apiService } from '../utils/apiService';
 
 interface Vehicle {
@@ -102,11 +102,6 @@ export function VehicleRegistry() {
     if (!selectedVehicle) return;
 
     try {
-      const updates = {
-        ...formData,
-        equipment: formData.equipment.split(',').map(item => item.trim()).filter(item => item)
-      };
-
       // For now, simulate update by refetching data
       // In real implementation, this would call apiService.updateVehicle()
       setIsEditDialogOpen(false);

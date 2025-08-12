@@ -8,7 +8,6 @@ import {
   mockBulkAccounts,
   mockMaintenanceRecords,
   mockDashboardStats,
-  mockApiResponse,
   shouldUseMockData
 } from './mockData';
 
@@ -162,8 +161,31 @@ class ApiService {
 
   // Dashboard stats
   async getDashboardStats() {
+    if (this.useMockData) {
+      // Calculate dynamic stats from current mock data
+      const pendingTickets = mockWorkTickets.filter(ticket => ticket.status === 'pending').length;
+      
+      return {
+        totalVehicles: mockVehicles.length,
+        totalDrivers: mockDrivers.length,
+        totalFuelRecords: mockFuelRecords.length,
+        totalMaintenanceRecords: mockMaintenanceRecords.length,
+        totalWorkTickets: mockWorkTickets.length,
+        pendingWorkTickets: pendingTickets,
+        lastUpdated: new Date().toISOString()
+      };
+    }
+    
     const response = await this.makeRequest<any>('dashboard-stats');
-    return response.success ? response.data?.stats : mockDashboardStats;
+    return response.success ? response.data?.stats : {
+      totalVehicles: 0,
+      totalDrivers: 0,
+      totalFuelRecords: 0,
+      totalMaintenanceRecords: 0,
+      totalWorkTickets: 0,
+      pendingWorkTickets: 0,
+      lastUpdated: new Date().toISOString()
+    };
   }
 
   // Vehicles
@@ -261,6 +283,9 @@ class ApiService {
         ticket.approved_by = approvalData.approved_by;
         ticket.approved_at = approvalData.approved_at;
         ticket.updated_at = new Date().toISOString();
+        
+        // Save updated tickets to localStorage for persistence
+        localStorageManager.saveWorkTickets(mockWorkTickets);
       }
       return { success: true, ticket };
     }
@@ -281,6 +306,9 @@ class ApiService {
         ticket.rejected_at = rejectionData.rejected_at;
         ticket.rejection_reason = rejectionData.rejection_reason;
         ticket.updated_at = new Date().toISOString();
+        
+        // Save updated tickets to localStorage for persistence
+        localStorageManager.saveWorkTickets(mockWorkTickets);
       }
       return { success: true, ticket };
     }

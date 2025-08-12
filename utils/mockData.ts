@@ -371,15 +371,19 @@ export const mockMaintenanceRecords = [
   }
 ];
 
-export const mockDashboardStats = {
-  totalVehicles: 3,
-  totalDrivers: 3,
-  totalFuelRecords: 3,
-  totalMaintenanceRecords: 3,
-  totalWorkTickets: 4,
-  pendingWorkTickets: 2,
+// Function to calculate dynamic dashboard stats
+export const getMockDashboardStats = () => ({
+  totalVehicles: mockVehicles.length,
+  totalDrivers: mockDrivers.length,
+  totalFuelRecords: mockFuelRecords.length,
+  totalMaintenanceRecords: mockMaintenanceRecords.length,
+  totalWorkTickets: mockWorkTickets.length,
+  pendingWorkTickets: mockWorkTickets.filter(ticket => ticket.status === 'pending').length,
   lastUpdated: new Date().toISOString()
-};
+});
+
+// Static export for backward compatibility
+export const mockDashboardStats = getMockDashboardStats();
 
 // Helper function to get driver-specific data
 export const getDriverSpecificData = (driverId: string) => {

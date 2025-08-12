@@ -61,7 +61,7 @@ export function ServerDebugPanel({ apiBase = `https://${projectId}.supabase.co/f
         isJson: false,
         responseTime: Date.now() - startTime,
         response: null,
-        error: error.message
+        error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
   };

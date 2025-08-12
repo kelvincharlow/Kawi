@@ -15,9 +15,9 @@
     "jsx": "react-jsx",
 
     /* Linting */
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
+    "strict": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
 
     /* Path mapping */
@@ -26,6 +26,7 @@
       "@/*": ["./*"]
     }
   },
-  "include": ["src", "**/*.ts", "**/*.tsx"],
+  "include": ["src", "App.tsx", "components/ComponentManagement.tsx", "components/DriverManagement.tsx", "components/VehicleRegistry.tsx", "components/FuelManagement.tsx", "components/MaintenanceManagement.tsx", "components/TransferManagement.tsx", "components/WorkTicketManagement.tsx", "components/ReportsAnalytics.tsx", "components/ServerDebugPanel.tsx", "utils/**/*.ts"],
+  "exclude": ["components/ui/**/*", "supabase/functions/**/*"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

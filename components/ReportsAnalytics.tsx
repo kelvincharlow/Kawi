@@ -2,21 +2,22 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { Badge } from "./ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
-import { Download, TrendingUp, TrendingDown, DollarSign, Fuel, Car, Users, FileText, FileSpreadsheet, FileImage, Loader2, ChevronDown, Wrench } from 'lucide-react';
+import { Download, TrendingUp, DollarSign, Fuel, Car, Users, FileText, FileSpreadsheet, FileImage, Loader2, ChevronDown, Wrench } from 'lucide-react';
 import { formatCurrency, formatNumber, formatDate, filterByPeriod } from '../utils/helpers';
 import { TIME_PERIODS } from '../utils/constants';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 
 const API_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-3fe6e872`;
 
+// Helper function to format current date
+const getCurrentDateFormatted = () => formatDate(new Date().toISOString());
+
 export function ReportsAnalytics() {
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [fuelRecords, setFuelRecords] = useState<any[]>([]);
   const [maintenanceRecords, setMaintenanceRecords] = useState<any[]>([]);
-  const [components, setComponents] = useState<any[]>([]);
   const [transfers, setTransfers] = useState<any[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<string>('month');
   const [selectedVehicle, setSelectedVehicle] = useState<string>('all');
@@ -50,7 +51,7 @@ export function ReportsAnalytics() {
         })
       ]);
 
-      const [vehiclesData, fuelData, maintenanceData, componentsData, transfersData, driversData] = await Promise.all([
+      const [vehiclesData, fuelData, maintenanceData, , transfersData, driversData] = await Promise.all([
         vehiclesRes.json(),
         fuelRes.json(),
         maintenanceRes.json(),
@@ -62,7 +63,6 @@ export function ReportsAnalytics() {
       setVehicles(vehiclesData.vehicles || []);
       setFuelRecords(fuelData.records || []);
       setMaintenanceRecords(maintenanceData.maintenance || []);
-      setComponents(componentsData.components || []);
       setTransfers(transfersData.transfers || []);
       setDrivers(driversData.drivers || []);
     } catch (error) {
@@ -71,7 +71,6 @@ export function ReportsAnalytics() {
       setVehicles([]);
       setFuelRecords([]);
       setMaintenanceRecords([]);
-      setComponents([]);
       setTransfers([]);
       setDrivers([]);
     }
@@ -331,27 +330,27 @@ export function ReportsAnalytics() {
         case 'summary':
           const summaryData = [reportData.summary];
           csvContent = convertToCSV(summaryData, Object.keys(reportData.summary));
-          filename = `fleet-summary-${formatDate(new Date())}.csv`;
+          filename = `fleet-summary-${getCurrentDateFormatted()}.csv`;
           break;
 
         case 'vehicles':
           csvContent = convertToCSV(reportData.vehicles, Object.keys(reportData.vehicles[0] || {}));
-          filename = `vehicle-registry-${formatDate(new Date())}.csv`;
+          filename = `vehicle-registry-${getCurrentDateFormatted()}.csv`;
           break;
 
         case 'fuel':
           csvContent = convertToCSV(reportData.fuelRecords, Object.keys(reportData.fuelRecords[0] || {}));
-          filename = `fuel-records-${formatDate(new Date())}.csv`;
+          filename = `fuel-records-${getCurrentDateFormatted()}.csv`;
           break;
 
         case 'maintenance':
           csvContent = convertToCSV(reportData.maintenanceRecords, Object.keys(reportData.maintenanceRecords[0] || {}));
-          filename = `maintenance-records-${formatDate(new Date())}.csv`;
+          filename = `maintenance-records-${getCurrentDateFormatted()}.csv`;
           break;
 
         case 'drivers':
           csvContent = convertToCSV(reportData.drivers, Object.keys(reportData.drivers[0] || {}));
-          filename = `driver-records-${formatDate(new Date())}.csv`;
+          filename = `driver-records-${getCurrentDateFormatted()}.csv`;
           break;
 
         case 'analytics':
@@ -361,7 +360,7 @@ export function ReportsAnalytics() {
             ...reportData.analytics.monthlyTrends.map(item => ({ ...item, type: 'monthly_trend' }))
           ];
           csvContent = convertToCSV(analyticsData, ['type', 'vehicle', 'efficiency', 'fuel', 'mileage', 'cost', 'month', 'maintenance', 'total']);
-          filename = `analytics-report-${formatDate(new Date())}.csv`;
+          filename = `analytics-report-${getCurrentDateFormatted()}.csv`;
           break;
 
         default:
@@ -373,7 +372,7 @@ export function ReportsAnalytics() {
             ...reportData.maintenanceRecords.map(m => ({ section: 'Maintenance', ...m }))
           ];
           csvContent = convertToCSV(completeData, ['section', 'id', 'name', 'gkNumber', 'date', 'cost', 'status']);
-          filename = `complete-fleet-report-${formatDate(new Date())}.csv`;
+          filename = `complete-fleet-report-${getCurrentDateFormatted()}.csv`;
       }
 
       downloadFile(csvContent, filename, 'text/csv');
@@ -389,7 +388,7 @@ export function ReportsAnalytics() {
     try {
       const reportData = generateReportData();
       const jsonContent = JSON.stringify(reportData, null, 2);
-      const filename = `fleet-report-${formatDate(new Date())}.json`;
+      const filename = `fleet-report-${getCurrentDateFormatted()}.json`;
       downloadFile(jsonContent, filename, 'application/json');
     } catch (error) {
       console.error('Error exporting JSON:', error);
@@ -431,7 +430,7 @@ export function ReportsAnalytics() {
           <div class="header">
             <div class="logo">Fleet Management System</div>
             <div class="subtitle">Ministry of Energy and Petroleum - State Department for Energy</div>
-            <div class="subtitle">Generated on: ${formatDate(new Date())}</div>
+            <div class="subtitle">Generated on: ${getCurrentDateFormatted()}</div>
           </div>
 
           <div class="section">
@@ -499,7 +498,7 @@ export function ReportsAnalytics() {
               <tbody>
                 ${reportData.fuelRecords.slice(0, 10).map(record => `
                   <tr>
-                    <td>${formatDate(new Date(record.date))}</td>
+                    <td>${formatDate(record.date)}</td>
                     <td>${record.vehicle}</td>
                     <td>${record.fuelAmount}</td>
                     <td>${formatCurrency(record.totalCost)}</td>
