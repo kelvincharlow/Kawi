@@ -8,7 +8,10 @@ export default {
     './components/**/*.{ts,tsx}',
     './app/**/*.{ts,tsx}',
     './src/**/*.{ts,tsx}',
-    './**/*.{ts,tsx}',
+    './utils/**/*.{ts,tsx}',
+    './supabase/**/*.{ts,tsx}',
+    './*.{ts,tsx}',
+    '!./node_modules/**/*',
   ],
   prefix: "",
   theme: {
