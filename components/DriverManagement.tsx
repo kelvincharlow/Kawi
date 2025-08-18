@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Textarea } from "./ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { Plus, Edit, Users, Car, Calendar, Phone, Mail, Key, Eye, EyeOff, Copy, RefreshCw } from 'lucide-react';
+import { Plus, Edit, Users, Car, Calendar, Phone, Mail } from 'lucide-react';
 import { toast } from "sonner";
 import { apiService } from '../utils/apiService';
 
@@ -50,10 +50,7 @@ export function DriverManagement() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAddDriverDialogOpen, setIsAddDriverDialogOpen] = useState(false);
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
-  const [isCredentialsDialogOpen, setIsCredentialsDialogOpen] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
-  const [newCredentials, setNewCredentials] = useState<{ username: string; password: string } | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
   const [activeTab, setActiveTab] = useState('drivers');
 
   const [driverFormData, setDriverFormData] = useState({
@@ -67,9 +64,7 @@ export function DriverManagement() {
     department: '',
     status: 'active',
     dateJoined: '',
-    notes: '',
-    username: '',
-    password: ''
+    notes: ''
   });
 
   const [assignmentFormData, setAssignmentFormData] = useState({
@@ -129,40 +124,24 @@ export function DriverManagement() {
     e.preventDefault();
     
     try {
-      // Generate credentials if not provided
-      const username = driverFormData.username || generateUsername(driverFormData.name, driverFormData.employeeId);
-      const password = driverFormData.password || generatePassword();
-
       const driverData = {
-        ...driverFormData,
-        username,
-        password
+        ...driverFormData
       };
 
       await apiService.createDriver(driverData);
       
-      // Show credentials to admin
-      setNewCredentials({ username, password });
-      setIsCredentialsDialogOpen(true);
-      
       setIsAddDriverDialogOpen(false);
       resetDriverForm();
       await fetchAllData();
       
-      toast.success('Driver created successfully! Credentials generated.');
+      toast.success('Driver created successfully!');
     } catch (error) {
       console.info('Driver creation completed');
       
-      // Still show credentials in demo mode
-      const username = driverFormData.username || generateUsername(driverFormData.name, driverFormData.employeeId);
-      const password = driverFormData.password || generatePassword();
-      setNewCredentials({ username, password });
-      setIsCredentialsDialogOpen(true);
-      
       setIsAddDriverDialogOpen(false);
       resetDriverForm();
       await fetchAllData();
-      toast.success('Driver created successfully! Credentials generated.');
+      toast.success('Driver created successfully!');
     }
   };
 
@@ -202,9 +181,7 @@ export function DriverManagement() {
       department: '',
       status: 'active',
       dateJoined: '',
-      notes: '',
-      username: '',
-      password: ''
+      notes: ''
     });
   };
 
@@ -217,20 +194,6 @@ export function DriverManagement() {
       purpose: '',
       notes: ''
     });
-  };
-
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success(`${label} copied to clipboard!`);
-  };
-
-  const generateNewCredentials = () => {
-    if (selectedDriver) {
-      const username = generateUsername(selectedDriver.name, selectedDriver.employeeId);
-      const password = generatePassword();
-      setNewCredentials({ username, password });
-      toast.success('New credentials generated!');
-    }
   };
 
   const getStatusColor = (status: string) => {
@@ -382,48 +345,6 @@ export function DriverManagement() {
               <SelectItem value="suspended">Suspended</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-      </div>
-
-      {/* Login Credentials Section */}
-      <div className="border-t pt-4 mt-6">
-        <h4 className="font-medium mb-3 flex items-center gap-2">
-          <Key className="h-4 w-4" />
-          Login Credentials
-        </h4>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="username">Username</Label>
-            <Input
-              id="username"
-              value={driverFormData.username}
-              onChange={(e) => setDriverFormData({...driverFormData, username: e.target.value})}
-              placeholder="Auto-generated if empty"
-            />
-            <p className="text-xs text-gray-500 mt-1">Leave empty to auto-generate</p>
-          </div>
-          <div>
-            <Label htmlFor="password">Password</Label>
-            <div className="relative">
-              <Input
-                id="password"
-                type={showPassword ? "text" : "password"}
-                value={driverFormData.password}
-                onChange={(e) => setDriverFormData({...driverFormData, password: e.target.value})}
-                placeholder="Auto-generated if empty"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-0 top-0 h-full px-3"
-                onClick={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Leave empty to auto-generate</p>
-          </div>
         </div>
       </div>
 
@@ -685,12 +606,6 @@ export function DriverManagement() {
                           <div>
                             <CardTitle className="text-xl font-bold text-gray-800">{driver.name}</CardTitle>
                             <p className="text-sm text-gray-600 font-medium">ID: {driver.employeeId}</p>
-                            {driver.username && (
-                              <p className="text-xs text-gray-500 flex items-center gap-1 mt-1">
-                                <Key className="h-3 w-3 text-blue-600" />
-                                <span className="font-mono">{driver.username}</span>
-                              </p>
-                            )}
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-2">
@@ -720,7 +635,7 @@ export function DriverManagement() {
                         <div className="p-4 bg-white/60 rounded-lg border border-gray-200 shadow-sm">
                           <p className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                             <div className="p-1 bg-green-100 rounded">
-                              <Key className="h-3 w-3 text-green-600" />
+                              <Car className="h-3 w-3 text-green-600" />
                             </div>
                             License
                           </p>
@@ -823,58 +738,6 @@ export function DriverManagement() {
                           <p className="text-sm text-gray-900">{driver.notes}</p>
                         </div>
                       )}
-
-                      {/* Enhanced Login Credentials Section */}
-                      {driver.username && (
-                        <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border-2 border-green-200">
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-2">
-                              <div className="p-2 bg-green-600 rounded-lg">
-                                <Key className="h-4 w-4 text-white" />
-                              </div>
-                              <h4 className="font-semibold text-green-800">Login Credentials</h4>
-                            </div>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setSelectedDriver(driver);
-                                generateNewCredentials();
-                                setIsCredentialsDialogOpen(true);
-                              }}
-                              className="border-green-300 text-green-700 hover:bg-green-100"
-                            >
-                              <RefreshCw className="h-3 w-3 mr-1" />
-                              Reset
-                            </Button>
-                          </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                            <div className="p-3 bg-white rounded-lg border border-green-200">
-                              <p className="text-green-700 font-medium mb-1">Username:</p>
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono text-gray-900 font-semibold">{driver.username}</span>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => copyToClipboard(driver.username!, 'Username')}
-                                  className="h-6 w-6 p-0 hover:bg-green-100"
-                                >
-                                  <Copy className="h-3 w-3 text-green-600" />
-                                </Button>
-                              </div>
-                            </div>
-                            <div className="p-3 bg-white rounded-lg border border-green-200">
-                              <p className="text-green-700 font-medium mb-1">Password:</p>
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono text-gray-600">••••••••</span>
-                                <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
-                                  Reset to view
-                                </Badge>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
                     </CardContent>
                   </Card>
                 );
@@ -899,97 +762,6 @@ export function DriverManagement() {
           </Tabs>
         </CardContent>
       </Card>
-
-      {/* Credentials Display Dialog */}
-      <Dialog open={isCredentialsDialogOpen} onOpenChange={setIsCredentialsDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Key className="h-5 w-5" />
-              Driver Login Credentials
-            </DialogTitle>
-            <DialogDescription>
-              Share these credentials securely with the driver. They will use these to access their personal portal.
-            </DialogDescription>
-          </DialogHeader>
-          
-          {newCredentials && (
-            <div className="space-y-4">
-              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="space-y-3">
-                  <div>
-                    <Label className="text-sm font-medium text-green-800">Username</Label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Input 
-                        value={newCredentials.username} 
-                        readOnly 
-                        className="font-mono bg-white"
-                      />
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => copyToClipboard(newCredentials.username, 'Username')}
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <Label className="text-sm font-medium text-green-800">Password</Label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Input 
-                        value={newCredentials.password} 
-                        readOnly 
-                        className="font-mono bg-white"
-                        type={showPassword ? "text" : "password"}
-                      />
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => copyToClipboard(newCredentials.password, 'Password')}
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-800">
-                  <strong>Important:</strong> Make sure to share these credentials securely with the driver. 
-                  They will need these to access their personal fleet management portal.
-                </p>
-              </div>
-
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    if (selectedDriver) {
-                      generateNewCredentials();
-                    }
-                  }}
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Generate New
-                </Button>
-                <Button onClick={() => setIsCredentialsDialogOpen(false)}>
-                  Done
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

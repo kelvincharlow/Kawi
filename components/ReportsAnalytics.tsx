@@ -4,12 +4,10 @@ import { Button } from "./ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
-import { Download, TrendingUp, DollarSign, Fuel, Car, Users, FileText, FileSpreadsheet, FileImage, Loader2, ChevronDown, Wrench } from 'lucide-react';
+import { Download, TrendingUp, DollarSign, Fuel, Car, Users, FileText, FileSpreadsheet, FileImage, Loader2, ChevronDown, Wrench, Calendar } from 'lucide-react';
 import { formatCurrency, formatNumber, formatDate, filterByPeriod } from '../utils/helpers';
 import { TIME_PERIODS } from '../utils/constants';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
-
-const API_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-3fe6e872`;
+import { apiService } from '../utils/apiService';
 
 // Helper function to format current date
 const getCurrentDateFormatted = () => formatDate(new Date().toISOString());
@@ -19,6 +17,7 @@ export function ReportsAnalytics() {
   const [fuelRecords, setFuelRecords] = useState<any[]>([]);
   const [maintenanceRecords, setMaintenanceRecords] = useState<any[]>([]);
   const [transfers, setTransfers] = useState<any[]>([]);
+  const [workTickets, setWorkTickets] = useState<any[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<string>('month');
   const [selectedVehicle, setSelectedVehicle] = useState<string>('all');
   const [isExporting, setIsExporting] = useState<boolean>(false);
@@ -30,49 +29,33 @@ export function ReportsAnalytics() {
 
   const fetchAllData = async () => {
     try {
-      const [vehiclesRes, fuelRes, maintenanceRes, componentsRes, transfersRes, driversRes] = await Promise.all([
-        fetch(`${API_BASE}/vehicles`, {
-          headers: { 'Authorization': `Bearer ${publicAnonKey}` }
-        }),
-        fetch(`${API_BASE}/fuel-records`, {
-          headers: { 'Authorization': `Bearer ${publicAnonKey}` }
-        }),
-        fetch(`${API_BASE}/maintenance`, {
-          headers: { 'Authorization': `Bearer ${publicAnonKey}` }
-        }),
-        fetch(`${API_BASE}/components`, {
-          headers: { 'Authorization': `Bearer ${publicAnonKey}` }
-        }),
-        fetch(`${API_BASE}/transfers`, {
-          headers: { 'Authorization': `Bearer ${publicAnonKey}` }
-        }),
-        fetch(`${API_BASE}/drivers`, {
-          headers: { 'Authorization': `Bearer ${publicAnonKey}` }
-        })
+      const [vehiclesData, fuelData, maintenanceData, workTicketsData, driversData] = await Promise.all([
+        apiService.getVehicles(),
+        apiService.getFuelRecords(),
+        apiService.getMaintenanceRecords(),
+        apiService.getWorkTickets(),
+        apiService.getDrivers()
       ]);
 
-      const [vehiclesData, fuelData, maintenanceData, , transfersData, driversData] = await Promise.all([
-        vehiclesRes.json(),
-        fuelRes.json(),
-        maintenanceRes.json(),
-        componentsRes.json(),
-        transfersRes.json(),
-        driversRes.json()
-      ]);
-
-      setVehicles(vehiclesData.vehicles || []);
-      setFuelRecords(fuelData.records || []);
-      setMaintenanceRecords(maintenanceData.maintenance || []);
-      setTransfers(transfersData.transfers || []);
-      setDrivers(driversData.drivers || []);
+      setVehicles(vehiclesData || []);
+      setFuelRecords(fuelData || []);
+      setMaintenanceRecords(maintenanceData || []);
+      setWorkTickets(workTicketsData || []);
+      setDrivers(driversData || []);
+      setTransfers([]); // For now, set empty transfers as it's not in apiService
+      
+      // Debug logging
+      console.log('Work Tickets loaded:', workTicketsData?.length || 0);
+      console.log('Drivers loaded:', driversData?.length || 0);
     } catch (error) {
       console.error('Error fetching data:', error);
-      // Set mock data for demo purposes
+      // Set empty arrays as fallback
       setVehicles([]);
       setFuelRecords([]);
       setMaintenanceRecords([]);
-      setTransfers([]);
+      setWorkTickets([]);
       setDrivers([]);
+      setTransfers([]);
     }
   };
 
@@ -532,13 +515,34 @@ export function ReportsAnalytics() {
   const kpis = calculateKPIs();
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Reports & Analytics</h2>
-        <div className="flex items-center gap-2">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50 p-6 space-y-8">
+      {/* Header Section */}
+      <div className="flex items-center justify-between bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+        <div className="flex items-center gap-4">
+          <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-3 rounded-xl">
+            <TrendingUp className="h-8 w-8 text-white" />
+          </div>
+          <div>
+            <h2 className="text-3xl font-bold text-gray-900">Reports & Analytics</h2>
+            <p className="text-gray-600 mt-1">Comprehensive fleet performance insights and data export</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button 
+            onClick={fetchAllData} 
+            variant="outline"
+            size="sm"
+            className="hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-all duration-200"
+          >
+            Refresh Data
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="flex items-center gap-2" disabled={isExporting}>
+              <Button 
+                variant="outline" 
+                className="flex items-center gap-2 hover:bg-green-50 hover:border-green-300 hover:text-green-700 transition-all duration-200" 
+                disabled={isExporting}
+              >
                 {isExporting ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
@@ -587,122 +591,176 @@ export function ReportsAnalytics() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button onClick={fetchAllData} variant="secondary" size="sm">
-            Refresh Data
-          </Button>
         </div>
       </div>
 
-      <div className="flex gap-4 mb-6">
-        <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-          <SelectTrigger className="w-48">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {TIME_PERIODS.map(period => (
-              <SelectItem key={period.value} value={period.value}>
-                {period.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        
-        <Select value={selectedVehicle} onValueChange={setSelectedVehicle}>
-          <SelectTrigger className="w-64">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Vehicles</SelectItem>
-            {vehicles.map(vehicle => (
-              <SelectItem key={vehicle.id} value={vehicle.id}>
-                {vehicle.gkNumber} - {vehicle.make} {vehicle.model}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {/* Filters Section */}
+      <Card className="shadow-sm border-0 bg-gradient-to-r from-gray-50 to-white">
+        <CardContent className="p-6">
+          <div className="flex gap-6">
+            <div className="flex-1">
+              <label className="text-sm font-medium text-gray-700 mb-2 block">Time Period</label>
+              <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+                <SelectTrigger className="border-gray-200 focus:border-blue-400 focus:ring-blue-400 transition-colors">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIME_PERIODS.map(period => (
+                    <SelectItem key={period.value} value={period.value}>
+                      {period.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex-1">
+              <label className="text-sm font-medium text-gray-700 mb-2 block">Vehicle Filter</label>
+              <Select value={selectedVehicle} onValueChange={setSelectedVehicle}>
+                <SelectTrigger className="border-gray-200 focus:border-blue-400 focus:ring-blue-400 transition-colors">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Vehicles</SelectItem>
+                  {vehicles.map(vehicle => (
+                    <SelectItem key={vehicle.id} value={vehicle.id}>
+                      {vehicle.gkNumber} - {vehicle.make} {vehicle.model}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card>
+        <Card className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-blue-500 bg-gradient-to-br from-blue-50 to-white">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
-              <DollarSign className="h-4 w-4" />
+              <div className="bg-blue-100 p-2 rounded-full">
+                <DollarSign className="h-4 w-4 text-blue-600" />
+              </div>
               Total Fuel Cost
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(kpis.totalFuelCost)}</div>
-            <p className="text-sm text-gray-600">Current period</p>
+            <div className="text-3xl font-bold text-blue-700">{formatCurrency(kpis.totalFuelCost)}</div>
+            <p className="text-xs text-blue-600 mt-1">Current period</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-amber-500 bg-gradient-to-br from-amber-50 to-white">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
-              <DollarSign className="h-4 w-4" />
+              <div className="bg-amber-100 p-2 rounded-full">
+                <DollarSign className="h-4 w-4 text-amber-600" />
+              </div>
               Maintenance Cost
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(kpis.totalMaintenanceCost)}</div>
-            <p className="text-sm text-gray-600">Current period</p>
+            <div className="text-3xl font-bold text-amber-700">{formatCurrency(kpis.totalMaintenanceCost)}</div>
+            <p className="text-xs text-amber-600 mt-1">Current period</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-green-500 bg-gradient-to-br from-green-50 to-white">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
-              <Fuel className="h-4 w-4" />
+              <div className="bg-green-100 p-2 rounded-full">
+                <Fuel className="h-4 w-4 text-green-600" />
+              </div>
               Fuel Consumed
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatNumber(kpis.totalFuelLiters)} L</div>
-            <p className="text-sm text-gray-600">Current period</p>
+            <div className="text-3xl font-bold text-green-700">{formatNumber(kpis.totalFuelLiters)} L</div>
+            <p className="text-xs text-green-600 mt-1">Current period</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-purple-500 bg-gradient-to-br from-purple-50 to-white">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" />
+              <div className="bg-purple-100 p-2 rounded-full">
+                <TrendingUp className="h-4 w-4 text-purple-600" />
+              </div>
               Avg Fuel Price
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">KES {kpis.avgFuelPrice.toFixed(2)}</div>
-            <p className="text-sm text-gray-600">Per liter</p>
+            <div className="text-3xl font-bold text-purple-700">KES {kpis.avgFuelPrice.toFixed(2)}</div>
+            <p className="text-xs text-purple-600 mt-1">Per liter</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Monthly Cost Trends</CardTitle>
+        <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-gray-50">
+          <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
+            <CardTitle className="flex items-center gap-3 text-gray-800">
+              <div className="bg-blue-100 p-2 rounded-full">
+                <TrendingUp className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <span className="text-xl font-bold">Monthly Cost Trends</span>
+                <p className="text-sm text-gray-600 font-normal mt-1">
+                  Fuel and maintenance expenses over time
+                </p>
+              </div>
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+          <CardContent className="p-6">
+            <ResponsiveContainer width="100%" height={350}>
               <LineChart data={getMonthlyTrends()}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                <Line type="monotone" dataKey="fuel" stroke="#3b82f6" name="Fuel" />
-                <Line type="monotone" dataKey="maintenance" stroke="#f59e0b" name="Maintenance" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis 
+                  dataKey="month" 
+                  stroke="#6b7280"
+                  fontSize={12}
+                  tick={{ fill: '#6b7280' }}
+                />
+                <YAxis 
+                  stroke="#6b7280"
+                  fontSize={12}
+                  tick={{ fill: '#6b7280' }}
+                  tickFormatter={(value) => `KES ${(value / 1000).toFixed(0)}K`}
+                />
+                <Tooltip 
+                  formatter={(value) => formatCurrency(Number(value))}
+                  contentStyle={{
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                  }}
+                />
+                <Line type="monotone" dataKey="fuel" stroke="#3b82f6" name="Fuel" strokeWidth={3} />
+                <Line type="monotone" dataKey="maintenance" stroke="#f59e0b" name="Maintenance" strokeWidth={3} />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Vehicle Status Distribution</CardTitle>
+        <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-gray-50">
+          <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-green-50 to-emerald-50">
+            <CardTitle className="flex items-center gap-3 text-gray-800">
+              <div className="bg-green-100 p-2 rounded-full">
+                <Car className="h-5 w-5 text-green-600" />
+              </div>
+              <div>
+                <span className="text-xl font-bold">Vehicle Status Distribution</span>
+                <p className="text-sm text-gray-600 font-normal mt-1">
+                  Current fleet status overview
+                </p>
+              </div>
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+          <CardContent className="p-6">
+            <ResponsiveContainer width="100%" height={350}>
               <PieChart>
                 <Pie
                   data={getVehicleStatusDistribution()}
@@ -710,7 +768,7 @@ export function ReportsAnalytics() {
                   cy="50%"
                   labelLine={false}
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
+                  outerRadius={100}
                   fill="#8884d8"
                   dataKey="value"
                 >
@@ -718,41 +776,124 @@ export function ReportsAnalytics() {
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip 
+                  contentStyle={{
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                  }}
+                />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Fuel Efficiency by Vehicle</CardTitle>
+        <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-gray-50">
+          <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-emerald-50 to-green-50">
+            <CardTitle className="flex items-center gap-3 text-gray-800">
+              <div className="bg-emerald-100 p-2 rounded-full">
+                <Fuel className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div>
+                <span className="text-xl font-bold">Fuel Efficiency by Vehicle</span>
+                <p className="text-sm text-gray-600 font-normal mt-1">
+                  Kilometers per liter performance
+                </p>
+              </div>
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+          <CardContent className="p-6">
+            <ResponsiveContainer width="100%" height={350}>
               <BarChart data={getFuelEfficiencyData()}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="vehicle" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="efficiency" fill="#10b981" name="km/L" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis 
+                  dataKey="vehicle" 
+                  stroke="#6b7280"
+                  fontSize={12}
+                  tick={{ fill: '#6b7280' }}
+                />
+                <YAxis 
+                  stroke="#6b7280"
+                  fontSize={12}
+                  tick={{ fill: '#6b7280' }}
+                />
+                <Tooltip 
+                  contentStyle={{
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                  }}
+                />
+                <Bar 
+                  dataKey="efficiency" 
+                  fill="url(#efficiencyGradient)" 
+                  name="km/L" 
+                  radius={[4, 4, 0, 0]}
+                />
+                <defs>
+                  <linearGradient id="efficiencyGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10b981" stopOpacity={1}/>
+                    <stop offset="100%" stopColor="#059669" stopOpacity={0.8}/>
+                  </linearGradient>
+                </defs>
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Maintenance Costs by Vehicle</CardTitle>
+        <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-gray-50">
+          <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-amber-50 to-orange-50">
+            <CardTitle className="flex items-center gap-3 text-gray-800">
+              <div className="bg-amber-100 p-2 rounded-full">
+                <Wrench className="h-5 w-5 text-amber-600" />
+              </div>
+              <div>
+                <span className="text-xl font-bold">Maintenance Costs by Vehicle</span>
+                <p className="text-sm text-gray-600 font-normal mt-1">
+                  Total maintenance expenses per vehicle
+                </p>
+              </div>
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+          <CardContent className="p-6">
+            <ResponsiveContainer width="100%" height={350}>
               <BarChart data={getMaintenanceCostData()}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="vehicle" />
-                <YAxis />
-                <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                <Bar dataKey="cost" fill="#f59e0b" name="Cost" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis 
+                  dataKey="vehicle" 
+                  stroke="#6b7280"
+                  fontSize={12}
+                  tick={{ fill: '#6b7280' }}
+                />
+                <YAxis 
+                  stroke="#6b7280"
+                  fontSize={12}
+                  tick={{ fill: '#6b7280' }}
+                  tickFormatter={(value) => `KES ${(value / 1000).toFixed(0)}K`}
+                />
+                <Tooltip 
+                  formatter={(value) => formatCurrency(Number(value))}
+                  contentStyle={{
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                  }}
+                />
+                <Bar 
+                  dataKey="cost" 
+                  fill="url(#maintenanceGradient)" 
+                  name="Cost" 
+                  radius={[4, 4, 0, 0]}
+                />
+                <defs>
+                  <linearGradient id="maintenanceGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f59e0b" stopOpacity={1}/>
+                    <stop offset="100%" stopColor="#d97706" stopOpacity={0.8}/>
+                  </linearGradient>
+                </defs>
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -762,65 +903,81 @@ export function ReportsAnalytics() {
       {/* Summary Report */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Fleet Summary Report
+          <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-gray-50">
+            <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+              <CardTitle className="flex items-center gap-3 text-gray-800">
+                <div className="bg-gray-100 p-2 rounded-full">
+                  <FileText className="h-5 w-5 text-gray-600" />
+                </div>
+                <div>
+                  <span className="text-xl font-bold">Fleet Summary Report</span>
+                  <p className="text-sm text-gray-600 font-normal mt-1">
+                    Comprehensive overview of fleet operations
+                  </p>
+                </div>
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="space-y-3">
-                  <h4 className="font-medium text-gray-900">Fleet Overview</h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Total Vehicles:</span>
-                      <span className="font-medium">{vehicles.length}</span>
+            <CardContent className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-gray-900 text-lg flex items-center gap-2">
+                    <Car className="h-5 w-5 text-blue-500" />
+                    Fleet Overview
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
+                      <span className="text-sm text-gray-700 font-medium">Total Vehicles:</span>
+                      <span className="font-bold text-blue-700 text-lg">{vehicles.length}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Active Vehicles:</span>
-                      <span className="font-medium">{vehicles.filter(v => v.status === 'active').length}</span>
+                    <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+                      <span className="text-sm text-gray-700 font-medium">Active Vehicles:</span>
+                      <span className="font-bold text-green-700 text-lg">{vehicles.filter(v => v.status === 'active').length}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">In Maintenance:</span>
-                      <span className="font-medium">{vehicles.filter(v => v.status === 'maintenance').length}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <h4 className="font-medium text-gray-900">Operational Costs</h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Total Fuel:</span>
-                      <span className="font-medium">{formatCurrency(kpis.totalFuelCost)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Total Maintenance:</span>
-                      <span className="font-medium">{formatCurrency(kpis.totalMaintenanceCost)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Grand Total:</span>
-                      <span className="font-medium">{formatCurrency(kpis.totalOperationalCost)}</span>
+                    <div className="flex justify-between items-center p-3 bg-amber-50 rounded-lg">
+                      <span className="text-sm text-gray-700 font-medium">In Maintenance:</span>
+                      <span className="font-bold text-amber-700 text-lg">{vehicles.filter(v => v.status === 'maintenance').length}</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <h4 className="font-medium text-gray-900">Recent Activity</h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Fuel Records:</span>
-                      <span className="font-medium">{getFilteredData().fuel.length}</span>
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-gray-900 text-lg flex items-center gap-2">
+                    <DollarSign className="h-5 w-5 text-green-500" />
+                    Operational Costs
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
+                      <span className="text-sm text-gray-700 font-medium">Total Fuel:</span>
+                      <span className="font-bold text-blue-700">{formatCurrency(kpis.totalFuelCost)}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Maintenance Records:</span>
-                      <span className="font-medium">{getFilteredData().maintenance.length}</span>
+                    <div className="flex justify-between items-center p-3 bg-amber-50 rounded-lg">
+                      <span className="text-sm text-gray-700 font-medium">Total Maintenance:</span>
+                      <span className="font-bold text-amber-700">{formatCurrency(kpis.totalMaintenanceCost)}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Transfers:</span>
-                      <span className="font-medium">{getFilteredData().transfers.length}</span>
+                    <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg border-2 border-purple-200">
+                      <span className="text-sm text-gray-700 font-medium">Grand Total:</span>
+                      <span className="font-bold text-purple-700 text-lg">{formatCurrency(kpis.totalOperationalCost)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-gray-900 text-lg flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-indigo-500" />
+                    Recent Activity
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center p-3 bg-indigo-50 rounded-lg">
+                      <span className="text-sm text-gray-700 font-medium">Fuel Records:</span>
+                      <span className="font-bold text-indigo-700 text-lg">{getFilteredData().fuel.length}</span>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
+                      <span className="text-sm text-gray-700 font-medium">Maintenance Records:</span>
+                      <span className="font-bold text-orange-700 text-lg">{getFilteredData().maintenance.length}</span>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-teal-50 rounded-lg">
+                      <span className="text-sm text-gray-700 font-medium">Transfers:</span>
+                      <span className="font-bold text-teal-700 text-lg">{getFilteredData().transfers.length}</span>
                     </div>
                   </div>
                 </div>
@@ -829,19 +986,26 @@ export function ReportsAnalytics() {
           </Card>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Download className="h-5 w-5" />
-              Export Options
+        <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-gray-50">
+          <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-green-50 to-emerald-50">
+            <CardTitle className="flex items-center gap-3 text-gray-800">
+              <div className="bg-green-100 p-2 rounded-full">
+                <Download className="h-5 w-5 text-green-600" />
+              </div>
+              <div>
+                <span className="text-xl font-bold">Export Options</span>
+                <p className="text-sm text-gray-600 font-normal mt-1">
+                  Download reports in various formats
+                </p>
+              </div>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="p-6 space-y-6">
             <div className="space-y-3">
               <Button 
                 onClick={() => exportToCSV('summary')} 
                 variant="outline" 
-                className="w-full justify-start"
+                className="w-full justify-start hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-all duration-200"
                 disabled={isExporting}
               >
                 <FileSpreadsheet className="h-4 w-4 mr-2" />
@@ -850,7 +1014,7 @@ export function ReportsAnalytics() {
               <Button 
                 onClick={exportToPDF} 
                 variant="outline" 
-                className="w-full justify-start"
+                className="w-full justify-start hover:bg-red-50 hover:border-red-300 hover:text-red-700 transition-all duration-200"
                 disabled={isExporting}
               >
                 <FileImage className="h-4 w-4 mr-2" />
@@ -859,7 +1023,7 @@ export function ReportsAnalytics() {
               <Button 
                 onClick={() => exportToCSV('complete')} 
                 variant="outline" 
-                className="w-full justify-start"
+                className="w-full justify-start hover:bg-green-50 hover:border-green-300 hover:text-green-700 transition-all duration-200"
                 disabled={isExporting}
               >
                 <FileText className="h-4 w-4 mr-2" />
@@ -867,24 +1031,57 @@ export function ReportsAnalytics() {
               </Button>
             </div>
             
-            <div className="pt-4 border-t">
-              <h5 className="text-sm font-medium text-gray-900 mb-2">Report Contents</h5>
-              <div className="space-y-1 text-xs text-gray-600">
-                <div>✓ Vehicle registry and status</div>
-                <div>✓ Fuel consumption records</div>
-                <div>✓ Maintenance logs and costs</div>
-                <div>✓ Driver information</div>
-                <div>✓ Transfer history</div>
-                <div>✓ Performance analytics</div>
+            <div className="pt-4 border-t border-gray-200">
+              <h5 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                Report Contents
+              </h5>
+              <div className="space-y-2 text-xs text-gray-600">
+                <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                  <span className="text-green-500">✓</span>
+                  Vehicle registry and status
+                </div>
+                <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                  <span className="text-green-500">✓</span>
+                  Fuel consumption records
+                </div>
+                <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                  <span className="text-green-500">✓</span>
+                  Maintenance logs and costs
+                </div>
+                <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                  <span className="text-green-500">✓</span>
+                  Driver information
+                </div>
+                <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                  <span className="text-green-500">✓</span>
+                  Transfer history
+                </div>
+                <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                  <span className="text-green-500">✓</span>
+                  Performance analytics
+                </div>
               </div>
             </div>
 
-            <div className="pt-4 border-t">
-              <h5 className="text-sm font-medium text-gray-900 mb-2">Export Formats</h5>
-              <div className="space-y-1 text-xs text-gray-600">
-                <div>📊 CSV - For spreadsheet analysis</div>
-                <div>📄 PDF - For presentations</div>
-                <div>💾 JSON - For data integration</div>
+            <div className="pt-4 border-t border-gray-200">
+              <h5 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <Download className="h-4 w-4" />
+                Export Formats
+              </h5>
+              <div className="space-y-2 text-xs text-gray-600">
+                <div className="flex items-center gap-2 p-2 bg-blue-50 rounded">
+                  <span>📊</span>
+                  CSV - For spreadsheet analysis
+                </div>
+                <div className="flex items-center gap-2 p-2 bg-red-50 rounded">
+                  <span>📄</span>
+                  PDF - For presentations
+                </div>
+                <div className="flex items-center gap-2 p-2 bg-green-50 rounded">
+                  <span>💾</span>
+                  JSON - For data integration
+                </div>
               </div>
             </div>
           </CardContent>

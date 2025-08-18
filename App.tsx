@@ -15,15 +15,10 @@ import {
   LogOut,
   User,
   FileText,
-  Clock,
   CheckCircle,
-  CheckCircle2,
   Calendar,
   Key,
-  AlertTriangle,
-  Activity,
-  Wifi,
-  Database
+  Clock
 } from 'lucide-react';
 import { VehicleRegistry } from './components/VehicleRegistry';
 import { DriverManagement } from './components/DriverManagement';
@@ -44,7 +39,6 @@ interface DashboardStats {
   totalFuelRecords: number;
   totalMaintenanceRecords: number;
   totalWorkTickets: number;
-  pendingWorkTickets: number;
   lastUpdated: string;
 }
 
@@ -79,11 +73,9 @@ export default function App() {
     totalFuelRecords: 0,
     totalMaintenanceRecords: 0,
     totalWorkTickets: 0,
-    pendingWorkTickets: 0,
     lastUpdated: new Date().toISOString()
   });
   const [driverTickets, setDriverTickets] = useState<DriverWorkTicket[]>([]);
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'testing'>('testing');
 
   const isAdmin = user?.role === 'admin';
   const isDriver = user?.role === 'driver';
@@ -95,17 +87,11 @@ export default function App() {
 
   useEffect(() => {
     if (user) {
-      // First test server connection, then fetch data
-      testServerConnection().then((isConnected) => {
-        if (isConnected) {
-          fetchDashboardStats();
-          if (isDriver) {
-            fetchDriverTickets();
-          }
-        } else {
-          console.log('Server connection failed, skipping data fetch');
-        }
-      });
+      // Fetch data when user is available
+      fetchDashboardStats();
+      if (isDriver) {
+        fetchDriverTickets();
+      }
     }
   }, [user, isDriver]);
 
@@ -142,35 +128,10 @@ export default function App() {
     setActiveTab('dashboard');
   };
 
-  const testServerConnection = async () => {
-    setConnectionStatus('testing');
-    
-    try {
-      const isConnected = await apiService.testConnection();
-      
-      if (isConnected) {
-        // If we get a successful response from real server
-        setConnectionStatus('connected');
-        return true;
-      } else {
-        // If server connection fails, we fall back to mock data but system still works
-        setConnectionStatus('connected'); // Changed: System is functional with mock data
-        return true;
-      }
-    } catch (error) {
-      // Even with connection test failures, system works with mock data
-      setConnectionStatus('connected'); // Changed: System is functional with mock data
-      return true;
-    }
-  };
-
   const fetchDashboardStats = async () => {
     try {
       const stats = await apiService.getDashboardStats();
       setDashboardStats(stats);
-      
-      // System is functional regardless of data source
-      setConnectionStatus('connected');
     } catch (error) {
       // Gracefully handle stats fetching errors
       console.info('Dashboard stats unavailable, calculating from available data');
@@ -184,9 +145,6 @@ export default function App() {
           apiService.getMaintenanceRecords().catch(() => []),
           apiService.getWorkTickets().catch(() => [])
         ]);
-
-        // Calculate pending work tickets
-        const pendingTickets = (workTicketsData || []).filter((ticket: any) => ticket.status === 'pending');
         
         setDashboardStats({
           totalVehicles: (vehiclesData || []).length,
@@ -194,7 +152,6 @@ export default function App() {
           totalFuelRecords: (fuelData || []).length,
           totalMaintenanceRecords: (maintenanceData || []).length,
           totalWorkTickets: (workTicketsData || []).length,
-          pendingWorkTickets: pendingTickets.length,
           lastUpdated: new Date().toISOString()
         });
       } catch (fallbackError) {
@@ -205,12 +162,9 @@ export default function App() {
           totalFuelRecords: 3,
           totalMaintenanceRecords: 3,
           totalWorkTickets: 4,
-          pendingWorkTickets: 0, // Default to 0 instead of hardcoded 2
           lastUpdated: new Date().toISOString()
         });
       }
-      // System is still functional with fallback data
-      setConnectionStatus('connected');
     }
   };
 
@@ -280,8 +234,7 @@ export default function App() {
         title: "Work Tickets",
         value: dashboardStats.totalWorkTickets,
         icon: FileText,
-        color: "bg-purple-500",
-        badge: dashboardStats.pendingWorkTickets > 0 ? dashboardStats.pendingWorkTickets : null
+        color: "bg-purple-500"
       },
       {
         title: "Fuel Records",
@@ -314,18 +267,14 @@ export default function App() {
             </div>
             <Button 
               onClick={async () => {
-                const isConnected = await testServerConnection();
-                if (isConnected) {
-                  fetchDashboardStats();
-                  if (isDriver) {
-                    fetchDriverTickets();
-                  }
+                fetchDashboardStats();
+                if (isDriver) {
+                  fetchDriverTickets();
                 }
               }} 
               className="bg-white text-blue-600 hover:bg-blue-50 shadow-lg border-0 px-6 py-3"
-              disabled={connectionStatus === 'testing'}
             >
-              {connectionStatus === 'testing' ? 'Testing...' : 'Refresh Data'}
+              Refresh Data
             </Button>
           </div>
         </div>
@@ -346,27 +295,13 @@ export default function App() {
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm font-medium text-white/90 flex items-center justify-between">
                     {stat.title}
-                    <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm relative">
+                    <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
                       <stat.icon className="h-5 w-5" />
-                      {stat.badge && (
-                        <Badge 
-                          variant="destructive" 
-                          className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-xs bg-red-500 hover:bg-red-600"
-                        >
-                          {stat.badge}
-                        </Badge>
-                      )}
                     </div>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold">{stat.value}</div>
-                  {stat.badge && (
-                    <p className="text-white/80 mt-2 flex items-center gap-1">
-                      <AlertTriangle className="h-4 w-4" />
-                      {stat.badge} pending approval
-                    </p>
-                  )}
                 </CardContent>
               </Card>
             );
@@ -396,11 +331,6 @@ export default function App() {
                 </div>
                 <div className="text-center">
                   <div className="font-semibold">Work Tickets</div>
-                  {dashboardStats.pendingWorkTickets > 0 && (
-                    <Badge variant="destructive" className="text-xs mt-1">
-                      {dashboardStats.pendingWorkTickets} pending
-                    </Badge>
-                  )}
                 </div>
               </Button>
               <Button 
@@ -473,141 +403,6 @@ export default function App() {
                 </div>
                 <div className="font-semibold">Reports & Analytics</div>
               </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Enhanced System Status Section */}
-        <Card className="bg-white shadow-xl border border-gray-200">
-          <CardHeader className="bg-gradient-to-r from-gray-50 to-green-50 border-b">
-            <CardTitle className="flex items-center gap-3 text-xl">
-              <div className="p-2 bg-green-600 rounded-lg">
-                <Activity className="h-6 w-6 text-white" />
-              </div>
-              System Status
-            </CardTitle>
-            <p className="text-gray-600 mt-1">Monitor system health and connectivity</p>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="space-y-4">
-              {/* Server Connection Status */}
-              <div className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all duration-200 ${
-                connectionStatus === 'connected' ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200' :
-                connectionStatus === 'disconnected' ? 'bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200' : 
-                'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200'
-              }`}>
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg ${
-                    connectionStatus === 'connected' ? 'bg-green-100' :
-                    connectionStatus === 'disconnected' ? 'bg-blue-100' : 'bg-yellow-100'
-                  }`}>
-                    <Wifi className={`h-5 w-5 ${
-                      connectionStatus === 'connected' ? 'text-green-600' :
-                      connectionStatus === 'disconnected' ? 'text-blue-600' : 'text-yellow-600'
-                    }`} />
-                  </div>
-                  <div>
-                    <p className="font-semibold">
-                      {connectionStatus === 'connected' ? 'Connected to Live Server' :
-                       connectionStatus === 'disconnected' ? 'Demo Mode - Using Sample Data' :
-                       'Testing connection...'}
-                    </p>
-                    <p className="text-sm text-gray-600">Backend service status</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${
-                    connectionStatus === 'connected' ? 'bg-green-500' :
-                    connectionStatus === 'disconnected' ? 'bg-blue-500' : 'bg-yellow-500'
-                  }`}></div>
-                  {connectionStatus === 'disconnected' && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={async () => {
-                        setConnectionStatus('testing');
-                        const isConnected = await testServerConnection();
-                        if (isConnected) {
-                          fetchDashboardStats();
-                          if (isDriver) {
-                            fetchDriverTickets();
-                          }
-                        }
-                      }}
-                      className="ml-2 text-xs bg-blue-50 hover:bg-blue-100 border-blue-200"
-                    >
-                      Retry
-                    </Button>
-                  )}
-                </div>
-              </div>
-              
-              <div className="flex items-center justify-between p-4 rounded-xl border-2 bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 transition-all duration-200">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-green-100 rounded-lg">
-                    <CheckCircle2 className="h-5 w-5 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="font-semibold">Application Status</p>
-                    <p className="text-sm text-gray-600">All systems operational</p>
-                  </div>
-                </div>
-                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-              </div>
-
-              {/* Last Updated Status */}
-              <div className="flex items-center justify-between p-4 rounded-xl border-2 bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200 transition-all duration-200">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-gray-100 rounded-lg">
-                    <Clock className="h-5 w-5 text-gray-600" />
-                  </div>
-                  <div>
-                    <p className="font-semibold">Last Updated</p>
-                    <p className="text-sm text-gray-600">{new Date(dashboardStats.lastUpdated).toLocaleString()}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Pending Alerts */}
-              {dashboardStats.pendingWorkTickets > 0 && (
-                <div className="flex items-center justify-between p-4 rounded-xl border-2 bg-gradient-to-r from-red-50 to-pink-50 border-red-200 transition-all duration-200">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-red-100 rounded-lg">
-                      <AlertTriangle className="h-5 w-5 text-red-600" />
-                    </div>
-                    <div>
-                      <p className="font-semibold">Pending Approvals</p>
-                      <p className="text-sm text-gray-600">
-                        {dashboardStats.pendingWorkTickets} work ticket{dashboardStats.pendingWorkTickets > 1 ? 's' : ''} awaiting review
-                      </p>
-                    </div>
-                  </div>
-                  <Badge variant="destructive" className="bg-red-100 text-red-800 hover:bg-red-200">
-                    {dashboardStats.pendingWorkTickets}
-                  </Badge>
-                </div>
-              )}
-              <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
-                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <span className="text-sm">Fleet Management System Active</span>
-              </div>
-              <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-sm">Admin: {user?.email}</span>
-              </div>
-              
-              {/* Demo Mode Information */}
-              {connectionStatus === 'disconnected' && (
-                <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  <div className="text-sm space-y-1">
-                    <p className="font-medium text-blue-800">Demo Mode Active:</p>
-                    <p className="text-blue-700">Using realistic sample data for demonstration</p>
-                    <p className="text-blue-700">All features are fully functional with mock data</p>
-                    <p className="text-blue-700">Perfect for testing and demonstration purposes</p>
-                  </div>
-                </div>
-              )}
             </div>
           </CardContent>
         </Card>
@@ -884,14 +679,6 @@ export default function App() {
             
             {/* Mobile - User info and logout */}
             <div className="flex items-center gap-2">
-              {/* Mobile connection status */}
-              <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-50 border">
-                <div className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'connected' ? 'bg-green-500' : connectionStatus === 'disconnected' ? 'bg-red-500' : 'bg-yellow-500'}`}></div>
-                <span className="text-xs font-medium text-gray-600">
-                  {connectionStatus === 'connected' ? 'Active' : connectionStatus === 'disconnected' ? 'Offline' : 'Connecting...'}
-                </span>
-              </div>
-              
               {/* Mobile user avatar */}
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-sm ${isAdmin ? 'bg-gradient-to-r from-blue-500 to-indigo-500' : 'bg-gradient-to-r from-green-500 to-emerald-500'}`}>
                 {user.name ? user.name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
@@ -911,19 +698,6 @@ export default function App() {
 
           {/* Mobile - Quick actions row */}
           <div className="flex md:hidden items-center justify-center gap-2 mt-3 pt-3 border-t border-gray-100">
-            {/* Mobile pending tickets */}
-            {isAdmin && dashboardStats.pendingWorkTickets > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setActiveTab('work-tickets')}
-                className="text-orange-600 border-orange-200 hover:bg-orange-50 font-medium flex-1"
-              >
-                <AlertTriangle className="h-3 w-3 mr-1" />
-                {dashboardStats.pendingWorkTickets} Pending
-              </Button>
-            )}
-            
             {/* Mobile new request */}
             {isDriver && (
               <Button
@@ -960,27 +734,6 @@ export default function App() {
             
             {/* Center - Quick actions and notifications */}
             <div className="flex items-center gap-3">
-              {/* Connection Status Indicator */}
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-50 border">
-                <div className={`w-2 h-2 rounded-full ${connectionStatus === 'connected' ? 'bg-green-500' : connectionStatus === 'disconnected' ? 'bg-red-500' : 'bg-yellow-500'}`}></div>
-                <span className="text-xs font-medium text-gray-600">
-                  {connectionStatus === 'connected' ? 'System Active' : connectionStatus === 'disconnected' ? 'System Offline' : 'Connecting...'}
-                </span>
-              </div>
-
-              {/* Admin quick actions */}
-              {isAdmin && dashboardStats.pendingWorkTickets > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setActiveTab('work-tickets')}
-                  className="text-orange-600 border-orange-200 hover:bg-orange-50 font-medium"
-                >
-                  <AlertTriangle className="h-4 w-4 mr-2" />
-                  {dashboardStats.pendingWorkTickets} Pending
-                </Button>
-              )}
-              
               {/* Driver quick actions */}
               {isDriver && (
                 <Button
@@ -1039,28 +792,6 @@ export default function App() {
               </Button>
             </div>
           </div>
-
-          {/* System Status Bar (desktop only for admin) */}
-          {isAdmin && (
-            <div className="hidden lg:block mt-3 pt-3 border-t border-gray-100">
-              <div className="flex items-center justify-between text-xs text-gray-500">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-1">
-                    <Database className="h-3 w-3" />
-                    <span>System Status: Active</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Activity className="h-3 w-3" />
-                    <span>Last Updated: {new Date(dashboardStats.lastUpdated).toLocaleTimeString()}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span>Total Records: {dashboardStats.totalVehicles + dashboardStats.totalDrivers + dashboardStats.totalFuelRecords}</span>
-                  <span>Active Users: Online</span>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
@@ -1079,11 +810,6 @@ export default function App() {
                   <TabsTrigger value="work-tickets" className="flex items-center gap-1 text-xs px-3 py-2 whitespace-nowrap">
                     <FileText className="h-3 w-3" />
                     Tickets
-                    {dashboardStats.pendingWorkTickets > 0 && (
-                      <Badge variant="destructive" className="text-xs ml-1 px-1 py-0 min-w-[16px] h-4 text-[10px]">
-                        {dashboardStats.pendingWorkTickets}
-                      </Badge>
-                    )}
                   </TabsTrigger>
                   <TabsTrigger value="vehicles" className="flex items-center gap-1 text-xs px-3 py-2 whitespace-nowrap">
                     <Car className="h-3 w-3" />
@@ -1126,11 +852,6 @@ export default function App() {
                   <TabsTrigger value="work-tickets" className="flex items-center gap-2">
                     <FileText className="h-4 w-4" />
                     Work Tickets
-                    {dashboardStats.pendingWorkTickets > 0 && (
-                      <Badge variant="destructive" className="text-xs ml-1">
-                        {dashboardStats.pendingWorkTickets}
-                      </Badge>
-                    )}
                   </TabsTrigger>
                   <TabsTrigger value="vehicles" className="flex items-center gap-2">
                     <Car className="h-4 w-4" />

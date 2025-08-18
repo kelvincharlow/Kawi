@@ -7,9 +7,9 @@ import { Badge } from "./ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Textarea } from "./ui/textarea";
-import { Plus, Wrench, Calendar, DollarSign, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Plus, Wrench, Calendar, DollarSign, AlertTriangle, CheckCircle, Search, FileText, Download, Car } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
+import { apiService } from '../utils/apiService';
 
 interface MaintenanceRecord {
   id: string;
@@ -32,14 +32,14 @@ interface MaintenanceRecord {
   createdAt: string;
 }
 
-const API_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-3fe6e872`;
-
 export function MaintenanceManagement() {
   const [maintenanceRecords, setMaintenanceRecords] = useState<MaintenanceRecord[]>([]);
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [selectedPriority, setSelectedPriority] = useState<string>('all');
 
   const [formData, setFormData] = useState({
     vehicleId: '',
@@ -76,17 +76,8 @@ export function MaintenanceManagement() {
 
   const fetchMaintenanceRecords = async () => {
     try {
-      const response = await fetch(`${API_BASE}/maintenance`, {
-        headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setMaintenanceRecords(data.maintenance || []);
-      }
+      const data = await apiService.getMaintenanceRecords();
+      setMaintenanceRecords(data || []);
     } catch (error) {
       console.error('Error fetching maintenance records:', error);
     }
@@ -94,17 +85,8 @@ export function MaintenanceManagement() {
 
   const fetchVehicles = async () => {
     try {
-      const response = await fetch(`${API_BASE}/vehicles`, {
-        headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setVehicles(data.vehicles || []);
-      }
+      const data = await apiService.getVehicles();
+      setVehicles(data || []);
     } catch (error) {
       console.error('Error fetching vehicles:', error);
     }
@@ -119,20 +101,10 @@ export function MaintenanceManagement() {
         partsReplaced: formData.partsReplaced.split(',').map(part => part.trim()).filter(part => part)
       };
 
-      const response = await fetch(`${API_BASE}/maintenance`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(recordData)
-      });
-
-      if (response.ok) {
-        setIsAddDialogOpen(false);
-        resetForm();
-        fetchMaintenanceRecords();
-      }
+      await apiService.createMaintenanceRecord(recordData);
+      setIsAddDialogOpen(false);
+      resetForm();
+      fetchMaintenanceRecords();
     } catch (error) {
       console.error('Error creating maintenance record:', error);
     }
@@ -172,6 +144,25 @@ export function MaintenanceManagement() {
 
     if (selectedStatus !== 'all') {
       filtered = filtered.filter(record => record.status === selectedStatus);
+    }
+
+    if (selectedPriority !== 'all') {
+      filtered = filtered.filter(record => record.priority === selectedPriority);
+    }
+
+    if (searchTerm) {
+      filtered = filtered.filter(record => {
+        const vehicle = getVehicleById(record.vehicleId);
+        const vehicleText = vehicle ? `${vehicle.gkNumber} ${vehicle.make} ${vehicle.model}` : '';
+        
+        return (
+          record.workDescription.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          record.serviceProvider.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          vehicleText.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          record.partsReplaced.some(part => part.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          record.notes.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      });
     }
 
     return filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -237,12 +228,57 @@ export function MaintenanceManagement() {
     );
   };
 
+  const getMaintenanceStats = () => {
+    const totalRecords = maintenanceRecords.length;
+    const completedRecords = maintenanceRecords.filter(r => r.status === 'completed').length;
+    const inProgressRecords = maintenanceRecords.filter(r => r.status === 'in-progress').length;
+    const totalCost = maintenanceRecords
+      .filter(r => r.status === 'completed')
+      .reduce((sum, r) => sum + r.cost, 0);
+    
+    return {
+      totalRecords,
+      completedRecords,
+      inProgressRecords,
+      totalCost,
+      averageCost: completedRecords > 0 ? totalCost / completedRecords : 0
+    };
+  };
+
+  const exportMaintenanceData = () => {
+    const csvContent = [
+      ['Date', 'Vehicle', 'Type', 'Provider', 'Description', 'Cost', 'Status', 'Priority'].join(','),
+      ...getFilteredRecords().map(record => {
+        const vehicle = getVehicleById(record.vehicleId);
+        const vehicleName = vehicle ? `${vehicle.gkNumber} - ${vehicle.make} ${vehicle.model}` : record.vehicleId;
+        return [
+          record.date,
+          vehicleName,
+          record.maintenanceType,
+          record.serviceProvider,
+          `"${record.workDescription}"`,
+          record.cost,
+          record.status,
+          record.priority
+        ].join(',');
+      })
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `maintenance-records-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
   const maintenanceForm = (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-6">
       <div>
-        <Label htmlFor="vehicleId">Vehicle*</Label>
+        <Label htmlFor="vehicleId" className="text-gray-700 font-medium">Vehicle*</Label>
         <Select value={formData.vehicleId} onValueChange={(value) => setFormData({...formData, vehicleId: value})}>
-          <SelectTrigger>
+          <SelectTrigger className="mt-1 border-gray-300 focus:border-blue-500 focus:ring-blue-500">
             <SelectValue placeholder="Select a vehicle" />
           </SelectTrigger>
           <SelectContent>
@@ -438,7 +474,7 @@ export function MaintenanceManagement() {
         />
       </div>
 
-      <div className="flex justify-end gap-2">
+      <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
         <Button 
           type="button" 
           variant="outline" 
@@ -446,84 +482,237 @@ export function MaintenanceManagement() {
             setIsAddDialogOpen(false);
             resetForm();
           }}
+          className="hover:bg-gray-100 transition-colors"
         >
           Cancel
         </Button>
-        <Button type="submit">Add Maintenance Record</Button>
+        <Button 
+          type="submit"
+          className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200"
+        >
+          Add Maintenance Record
+        </Button>
       </div>
     </form>
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Maintenance Management</h2>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              Add Maintenance Record
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Add Maintenance Record</DialogTitle>
-            </DialogHeader>
-            {maintenanceForm}
-          </DialogContent>
-        </Dialog>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50 p-6 space-y-8">
+      {/* Header Section */}
+      <div className="flex items-center justify-between bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+        <div className="flex items-center gap-4">
+          <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-3 rounded-xl">
+            <Wrench className="h-8 w-8 text-white" />
+          </div>
+          <div>
+            <h2 className="text-3xl font-bold text-gray-900">Maintenance Management</h2>
+            <p className="text-gray-600 mt-1">Track and manage your fleet maintenance operations</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button 
+            variant="outline" 
+            onClick={exportMaintenanceData}
+            className="flex items-center gap-2 hover:bg-green-50 hover:border-green-300 hover:text-green-700 transition-all duration-200"
+          >
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200">
+                <Plus className="h-4 w-4" />
+                Add Maintenance Record
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="text-2xl font-bold text-gray-900">Add Maintenance Record</DialogTitle>
+              </DialogHeader>
+              {maintenanceForm}
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
-      <div className="flex gap-4 mb-6">
-        <Select value={selectedVehicle} onValueChange={setSelectedVehicle}>
-          <SelectTrigger className="w-64">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Vehicles</SelectItem>
-            {vehicles.map(vehicle => (
-              <SelectItem key={vehicle.id} value={vehicle.id}>
-                {vehicle.gkNumber} - {vehicle.make} {vehicle.model}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        
-        <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-          <SelectTrigger className="w-48">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="scheduled">Scheduled</SelectItem>
-            <SelectItem value="in-progress">In Progress</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
-          </SelectContent>
-        </Select>
+      {/* Stats Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {(() => {
+          const stats = getMaintenanceStats();
+          return (
+            <>
+              <Card className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-blue-500 bg-gradient-to-br from-blue-50 to-white">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600 mb-1">Total Records</p>
+                      <p className="text-3xl font-bold text-gray-900">{stats.totalRecords}</p>
+                      <p className="text-xs text-blue-600 mt-1">All maintenance entries</p>
+                    </div>
+                    <div className="bg-blue-100 p-3 rounded-full">
+                      <FileText className="h-8 w-8 text-blue-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-green-500 bg-gradient-to-br from-green-50 to-white">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600 mb-1">Completed</p>
+                      <p className="text-3xl font-bold text-green-700">{stats.completedRecords}</p>
+                      <p className="text-xs text-green-600 mt-1">Finished services</p>
+                    </div>
+                    <div className="bg-green-100 p-3 rounded-full">
+                      <CheckCircle className="h-8 w-8 text-green-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-amber-500 bg-gradient-to-br from-amber-50 to-white">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600 mb-1">In Progress</p>
+                      <p className="text-3xl font-bold text-amber-700">{stats.inProgressRecords}</p>
+                      <p className="text-xs text-amber-600 mt-1">Active maintenance</p>
+                    </div>
+                    <div className="bg-amber-100 p-3 rounded-full">
+                      <Wrench className="h-8 w-8 text-amber-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-purple-500 bg-gradient-to-br from-purple-50 to-white">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600 mb-1">Total Cost</p>
+                      <p className="text-3xl font-bold text-purple-700">KES {stats.totalCost.toLocaleString()}</p>
+                      <p className="text-xs text-purple-600 mt-1">Total expenses</p>
+                    </div>
+                    <div className="bg-purple-100 p-3 rounded-full">
+                      <DollarSign className="h-8 w-8 text-purple-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          );
+        })()}
       </div>
+
+      {/* Filters and Search */}
+      <Card className="shadow-sm border-0 bg-gradient-to-r from-gray-50 to-white">
+        <CardContent className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+            <div className="relative md:col-span-2">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search maintenance records..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 border-gray-200 focus:border-blue-400 focus:ring-blue-400 transition-colors"
+              />
+            </div>
+            
+            <Select value={selectedVehicle} onValueChange={setSelectedVehicle}>
+              <SelectTrigger className="border-gray-200 focus:border-blue-400 focus:ring-blue-400 transition-colors">
+                <SelectValue placeholder="All Vehicles" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Vehicles</SelectItem>
+                {vehicles.map(vehicle => (
+                  <SelectItem key={vehicle.id} value={vehicle.id}>
+                    {vehicle.gkNumber} - {vehicle.make} {vehicle.model}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+              <SelectTrigger className="border-gray-200 focus:border-blue-400 focus:ring-blue-400 transition-colors">
+                <SelectValue placeholder="All Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="scheduled">Scheduled</SelectItem>
+                <SelectItem value="in-progress">In Progress</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={selectedPriority} onValueChange={setSelectedPriority}>
+              <SelectTrigger className="border-gray-200 focus:border-blue-400 focus:ring-blue-400 transition-colors">
+                <SelectValue placeholder="All Priorities" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Priorities</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="critical">Critical</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setSearchTerm('');
+                setSelectedVehicle('all');
+                setSelectedStatus('all');
+                setSelectedPriority('all');
+              }}
+              className="hover:bg-gray-100 transition-colors"
+            >
+              Clear Filters
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Upcoming Maintenance Alert */}
       {getUpcomingMaintenance().length > 0 && (
-        <Card className="border-orange-200 bg-orange-50">
+        <Card className="border-2 border-orange-200 bg-gradient-to-r from-orange-50 via-amber-50 to-orange-50 shadow-md">
           <CardHeader className="pb-3">
-            <CardTitle className="text-orange-800 flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5" />
-              Upcoming Maintenance
+            <CardTitle className="text-orange-800 flex items-center gap-3">
+              <div className="bg-orange-100 p-2 rounded-full">
+                <AlertTriangle className="h-6 w-6 text-orange-600" />
+              </div>
+              <div>
+                <span className="text-lg font-bold">Upcoming Maintenance</span>
+                <p className="text-sm text-orange-700 font-normal mt-1">
+                  {getUpcomingMaintenance().length} vehicle(s) require maintenance within 30 days
+                </p>
+              </div>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {getUpcomingMaintenance().map((record) => {
                 const vehicle = getVehicleById(record.vehicleId);
                 return (
-                  <div key={record.id} className="flex items-center justify-between p-2 bg-orange-100 rounded">
-                    <span className="font-medium text-orange-800">
-                      {vehicle ? `${vehicle.gkNumber} - ${vehicle.make} ${vehicle.model}` : record.vehicleId}
-                    </span>
-                    <span className="text-sm text-orange-700">
-                      Due: {new Date(record.nextServiceDate!).toLocaleDateString()}
-                    </span>
+                  <div key={record.id} className="flex items-center justify-between p-4 bg-white rounded-lg shadow-sm border border-orange-200 hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-orange-100 p-2 rounded-full">
+                        <Car className="h-4 w-4 text-orange-600" />
+                      </div>
+                      <div>
+                        <span className="font-semibold text-orange-900">
+                          {vehicle ? `${vehicle.gkNumber} - ${vehicle.make} ${vehicle.model}` : record.vehicleId}
+                        </span>
+                        <p className="text-sm text-orange-700">{record.workDescription}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-medium text-orange-800">
+                        Due: {new Date(record.nextServiceDate!).toLocaleDateString()}
+                      </span>
+                      <p className="text-xs text-orange-600">
+                        {Math.ceil((new Date(record.nextServiceDate!).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} days remaining
+                      </p>
+                    </div>
                   </div>
                 );
               })}
@@ -533,34 +722,85 @@ export function MaintenanceManagement() {
       )}
 
       {/* Cost Analytics Chart */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Maintenance Costs by Vehicle</CardTitle>
+      <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-gray-50">
+        <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
+          <CardTitle className="flex items-center gap-3 text-gray-800">
+            <div className="bg-blue-100 p-2 rounded-full">
+              <DollarSign className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <span className="text-xl font-bold">Maintenance Costs by Vehicle</span>
+              <p className="text-sm text-gray-600 font-normal mt-1">
+                Total maintenance expenses across your fleet
+              </p>
+            </div>
+          </CardTitle>
         </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={getCostAnalytics()}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="vehicle" />
-              <YAxis />
-              <Tooltip formatter={(value) => [`KES ${value.toLocaleString()}`, 'Cost']} />
-              <Bar dataKey="cost" fill="#f59e0b" />
+        <CardContent className="p-6">
+          <ResponsiveContainer width="100%" height={350}>
+            <BarChart data={getCostAnalytics()} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis 
+                dataKey="vehicle" 
+                stroke="#6b7280"
+                fontSize={12}
+                tick={{ fill: '#6b7280' }}
+              />
+              <YAxis 
+                stroke="#6b7280"
+                fontSize={12}
+                tick={{ fill: '#6b7280' }}
+                tickFormatter={(value) => `KES ${(value / 1000).toFixed(0)}K`}
+              />
+              <Tooltip 
+                formatter={(value) => [`KES ${value.toLocaleString()}`, 'Cost']}
+                contentStyle={{
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                }}
+              />
+              <Bar 
+                dataKey="cost" 
+                fill="url(#colorGradient)"
+                radius={[4, 4, 0, 0]}
+              />
+              <defs>
+                <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#3b82f6" stopOpacity={1}/>
+                  <stop offset="100%" stopColor="#1d4ed8" stopOpacity={0.8}/>
+                </linearGradient>
+              </defs>
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
 
       {/* Maintenance Records */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Maintenance Records</CardTitle>
+      <Card className="shadow-lg border-0">
+        <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+          <CardTitle className="flex items-center gap-3 text-gray-800">
+            <div className="bg-gray-100 p-2 rounded-full">
+              <Wrench className="h-5 w-5 text-gray-600" />
+            </div>
+            <div>
+              <span className="text-xl font-bold">Maintenance Records</span>
+              <p className="text-sm text-gray-600 font-normal mt-1">
+                {getFilteredRecords().length} record(s) found
+              </p>
+            </div>
+          </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-6">
           <div className="space-y-4">
             {getFilteredRecords().length === 0 ? (
-              <div className="text-center py-8">
-                <Wrench className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                <p className="text-gray-600">No maintenance records found.</p>
+              <div className="text-center py-12">
+                <div className="bg-gray-100 p-4 rounded-full w-24 h-24 mx-auto mb-4 flex items-center justify-center">
+                  <Wrench className="h-12 w-12 text-gray-400" />
+                </div>
+                <p className="text-gray-600 text-lg font-medium">No maintenance records found</p>
+                <p className="text-gray-500 text-sm mt-2">Try adjusting your filters or search terms</p>
               </div>
             ) : (
               getFilteredRecords().map((record) => {
@@ -568,62 +808,64 @@ export function MaintenanceManagement() {
                 const MaintenanceIcon = getMaintenanceTypeIcon(record.maintenanceType);
                 
                 return (
-                  <div key={record.id} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-100 rounded-full">
-                          <MaintenanceIcon className="h-5 w-5 text-blue-600" />
+                  <div key={record.id} className="p-6 border border-gray-200 rounded-xl hover:shadow-lg transition-all duration-300 bg-gradient-to-r from-white to-gray-50 hover:from-blue-50 hover:to-white">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-4">
+                        <div className="p-3 bg-blue-100 rounded-full">
+                          <MaintenanceIcon className="h-6 w-6 text-blue-600" />
                         </div>
                         <div>
-                          <h3 className="font-medium">
+                          <h3 className="font-semibold text-lg text-gray-900">
                             {vehicle ? `${vehicle.gkNumber} - ${vehicle.make} ${vehicle.model}` : record.vehicleId}
                           </h3>
-                          <p className="text-sm text-gray-600 capitalize">
-                            {record.maintenanceType} • {record.serviceProvider}
+                          <p className="text-sm text-gray-600 capitalize flex items-center gap-2 mt-1">
+                            <span className="font-medium">{record.maintenanceType}</span>
+                            <span className="text-gray-400">•</span>
+                            <span>{record.serviceProvider}</span>
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge className={`${getPriorityColor(record.priority)} text-white`}>
-                          {record.priority}
+                      <div className="flex items-center gap-3">
+                        <Badge className={`${getPriorityColor(record.priority)} text-white px-3 py-1 text-xs font-medium`}>
+                          {record.priority.toUpperCase()}
                         </Badge>
-                        <Badge className={`${getStatusColor(record.status)} text-white`}>
-                          {record.status}
+                        <Badge className={`${getStatusColor(record.status)} text-white px-3 py-1 text-xs font-medium`}>
+                          {record.status.replace('-', ' ').toUpperCase()}
                         </Badge>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-3">
-                      <div>
-                        <p className="text-sm text-gray-600">Work Description</p>
-                        <p className="font-medium text-sm">{record.workDescription}</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-4">
+                      <div className="bg-white p-4 rounded-lg border border-gray-100">
+                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Work Description</p>
+                        <p className="font-medium text-sm text-gray-900">{record.workDescription}</p>
                       </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Cost</p>
-                        <p className="font-medium flex items-center gap-1">
-                          <DollarSign className="h-3 w-3" />
+                      <div className="bg-white p-4 rounded-lg border border-gray-100">
+                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Cost</p>
+                        <p className="font-bold text-lg flex items-center gap-1 text-green-700">
+                          <DollarSign className="h-4 w-4" />
                           KES {record.cost.toLocaleString()}
                         </p>
                       </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Mileage</p>
-                        <p className="font-medium">{record.mileage.toLocaleString()} km</p>
+                      <div className="bg-white p-4 rounded-lg border border-gray-100">
+                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Mileage</p>
+                        <p className="font-medium text-lg text-gray-900">{record.mileage.toLocaleString()} km</p>
                       </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Date</p>
-                        <p className="font-medium flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
+                      <div className="bg-white p-4 rounded-lg border border-gray-100">
+                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Date</p>
+                        <p className="font-medium text-sm flex items-center gap-1 text-gray-900">
+                          <Calendar className="h-4 w-4 text-blue-500" />
                           {new Date(record.date).toLocaleDateString()}
                         </p>
                       </div>
                     </div>
 
                     {record.partsReplaced && record.partsReplaced.length > 0 && (
-                      <div className="mb-3">
-                        <p className="text-sm text-gray-600 mb-1">Parts Replaced</p>
-                        <div className="flex flex-wrap gap-1">
+                      <div className="mb-4">
+                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">Parts Replaced</p>
+                        <div className="flex flex-wrap gap-2">
                           {record.partsReplaced.map((part, index) => (
-                            <Badge key={index} variant="secondary" className="text-xs">
+                            <Badge key={index} variant="secondary" className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors">
                               {part}
                             </Badge>
                           ))}
@@ -632,16 +874,21 @@ export function MaintenanceManagement() {
                     )}
 
                     {record.nextServiceDate && (
-                      <div className="text-sm text-blue-600 bg-blue-50 p-2 rounded">
-                        Next service due: {new Date(record.nextServiceDate).toLocaleDateString()}
-                        {record.nextServiceMileage && ` at ${record.nextServiceMileage.toLocaleString()} km`}
+                      <div className="mb-4">
+                        <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+                          <p className="text-sm font-medium text-blue-800 flex items-center gap-2">
+                            <Calendar className="h-4 w-4" />
+                            Next service due: {new Date(record.nextServiceDate).toLocaleDateString()}
+                            {record.nextServiceMileage && ` at ${record.nextServiceMileage.toLocaleString()} km`}
+                          </p>
+                        </div>
                       </div>
                     )}
 
                     {record.notes && (
-                      <div className="mt-3 pt-3 border-t">
-                        <p className="text-sm text-gray-600">Notes</p>
-                        <p className="text-sm">{record.notes}</p>
+                      <div className="pt-4 border-t border-gray-200">
+                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">Notes</p>
+                        <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">{record.notes}</p>
                       </div>
                     )}
                   </div>

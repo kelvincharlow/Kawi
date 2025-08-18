@@ -391,7 +391,29 @@ class ApiService {
   // Maintenance Records
   async getMaintenanceRecords() {
     const response = await this.makeRequest<any>('maintenance-records');
-    return response.success ? response.data?.records : mockMaintenanceRecords;
+    const records = response.success ? response.data?.records : mockMaintenanceRecords;
+    
+    // Transform snake_case to camelCase to match component interface
+    return records.map((record: any) => ({
+      id: record.id,
+      vehicleId: record.vehicle_id,
+      maintenanceType: record.maintenance_type === 'regular' ? 'routine' : record.maintenance_type,
+      serviceProvider: record.service_provider || '',
+      workDescription: record.description || '',
+      partsReplaced: Array.isArray(record.parts_replaced) ? record.parts_replaced : [],
+      cost: record.cost || 0,
+      laborCost: record.labor_cost || 0,
+      partsCost: record.parts_cost || 0,
+      mileage: record.odometer_reading || 0,
+      date: record.service_date || record.date,
+      nextServiceDate: record.next_service_date,
+      nextServiceMileage: record.next_service_mileage || 0,
+      status: record.status === 'completed' ? 'completed' : record.status || 'scheduled',
+      priority: record.priority || 'medium',
+      warrantyInfo: record.warranty_info || '',
+      notes: record.notes || '',
+      createdAt: record.created_at
+    }));
   }
 
   async createMaintenanceRecord(maintenanceData: any) {

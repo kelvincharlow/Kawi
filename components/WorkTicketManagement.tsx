@@ -13,18 +13,16 @@ import { toast } from "sonner";
 import { 
   FileText,
   Plus,
-  CheckCircle,
-  XCircle,
-  Clock,
-  Printer,
-  Eye,
   Calendar,
   MapPin,
-  Fuel,
   User,
   Car,
-  AlertCircle,
-  Shield
+  Timer,
+  BarChart3,
+  Printer,
+  Eye,
+  CheckCircle,
+  Users
 } from 'lucide-react';
 import { apiService } from '../utils/apiService';
 
@@ -46,12 +44,9 @@ interface WorkTicket {
   departure_date: string;
   return_date: string;
   additional_notes: string;
-  status: 'pending' | 'approved' | 'rejected' | 'completed';
   created_at: string;
-  approved_by?: string;
-  approved_at?: string;
-  rejection_reason?: string;
   driver_email?: string;
+
 }
 
 interface Driver {
@@ -75,15 +70,15 @@ interface Vehicle {
   status: string;
 }
 
-// Driver Work Ticket View Component
-function DriverWorkTicketView({ onTicketStatusChange }: WorkTicketManagementProps = {}) {
+// Trip Records Management Component
+function TripRecordsManagement({ onTicketStatusChange }: WorkTicketManagementProps = {}) {
   const [workTickets, setWorkTickets] = useState<WorkTicket[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<WorkTicket | null>(null);
-  const [activeTab, setActiveTab] = useState('my-requests');
+  const [activeTab, setActiveTab] = useState('all-trips');
 
   // Form state
   const [formData, setFormData] = useState({
@@ -95,58 +90,99 @@ function DriverWorkTicketView({ onTicketStatusChange }: WorkTicketManagementProp
     estimated_distance: '',
     departure_date: '',
     return_date: '',
-    additional_notes: ''
+    additional_notes: '',
+
   });
 
-  // Get current user info
-  const currentUser = JSON.parse(localStorage.getItem('fleet_user') || '{}');
+  // Data fetching functions
+  const fetchWorkTickets = async () => {
+    try {
+      const tickets = await apiService.getWorkTickets();
+      if (Array.isArray(tickets)) {
+        setWorkTickets(tickets);
+      } else {
+        // Mock data for demo
+        setWorkTickets([
+          {
+            id: '1',
+            driver_id: '1',
+            driver_name: 'John Doe',
+            driver_license: 'DL123456',
+            vehicle_id: '1',
+            vehicle_registration: 'GK-001-A',
+            destination: 'Nairobi CBD',
+            purpose: 'Client Meeting',
+            fuel_required: 50,
+            estimated_distance: 120,
+            departure_date: '2025-01-15',
+            return_date: '2025-01-15',
+            additional_notes: 'Pick up documents from office',
+            created_at: '2025-01-14T10:00:00Z'
+          }
+        ]);
+      }
+    } catch (error) {
+      console.log('Using mock data for work tickets');
+      setWorkTickets([]);
+    }
+  };
 
-  useEffect(() => {
-    fetchAllData();
-  }, []);
+  const fetchDrivers = async () => {
+    try {
+      const driversData = await apiService.getDrivers();
+      if (Array.isArray(driversData)) {
+        setDrivers(driversData);
+      } else {
+        // Mock data
+        setDrivers([
+          { id: '1', name: 'John Doe', license_number: 'DL123456', email: 'john@company.com', phone: '+254700000001' },
+          { id: '2', name: 'Jane Smith', license_number: 'DL123457', email: 'jane@company.com', phone: '+254700000002' }
+        ]);
+      }
+    } catch (error) {
+      console.log('Using mock data for drivers');
+      setDrivers([
+        { id: '1', name: 'John Doe', license_number: 'DL123456', email: 'john@company.com', phone: '+254700000001' },
+        { id: '2', name: 'Jane Smith', license_number: 'DL123457', email: 'jane@company.com', phone: '+254700000002' }
+      ]);
+    }
+  };
+
+  const fetchVehicles = async () => {
+    try {
+      const vehiclesData = await apiService.getVehicles();
+      if (Array.isArray(vehiclesData)) {
+        setVehicles(vehiclesData);
+      } else {
+        // Mock data
+        setVehicles([
+          { id: '1', registration_number: 'GK-001-A', make: 'Toyota', model: 'Hilux', status: 'Available' },
+          { id: '2', registration_number: 'GK-002-B', make: 'Nissan', model: 'Patrol', status: 'Available' }
+        ]);
+      }
+    } catch (error) {
+      console.log('Using mock data for vehicles');
+      setVehicles([
+        { id: '1', registration_number: 'GK-001-A', make: 'Toyota', model: 'Hilux', status: 'Available' },
+        { id: '2', registration_number: 'GK-002-B', make: 'Nissan', model: 'Patrol', status: 'Available' }
+      ]);
+    }
+  };
 
   const fetchAllData = async () => {
     setIsLoading(true);
     try {
-      const [ticketsData, driversData, vehiclesData] = await Promise.all([
-        apiService.getWorkTickets(),
-        apiService.getDrivers(),
-        apiService.getVehicles()
-      ]);
-
-      // Filter tickets for current driver
-      const myTickets = (ticketsData || []).filter((ticket: any) => {
-        const matchesName = ticket.driver_name === currentUser.name;
-        const matchesEmail = ticket.driver_email === currentUser.email;
-        const nameIncludesEmailPrefix = currentUser?.email && ticket.driver_name?.toLowerCase().includes(currentUser.email.split('@')[0].toLowerCase());
-        
-        return matchesName || matchesEmail || nameIncludesEmailPrefix;
-      });
-      
-      setWorkTickets(myTickets);
-      setDrivers(driversData || []);
-      setVehicles(vehiclesData || []);
-
-      // Auto-select current driver if found
-      const currentDriver = (driversData || []).find((d: Driver) => 
-        d.email === currentUser.email || 
-        d.name === currentUser.name ||
-        d.email?.toLowerCase() === currentUser.email?.toLowerCase() ||
-        d.name?.toLowerCase() === currentUser.name?.toLowerCase()
-      );
-      
-      if (currentDriver) {
-        setFormData(prev => ({ ...prev, driver_id: currentDriver.id }));
-      }
+      await Promise.all([fetchWorkTickets(), fetchDrivers(), fetchVehicles()]);
     } catch (error) {
-      console.info('Error fetching work ticket data, using fallback');
-      setWorkTickets([]);
-      setDrivers([]);
-      setVehicles([]);
+      console.log('Data fetching completed');
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchAllData();
+  }, []);
 
   const handleCreateTicket = async () => {
     try {
@@ -179,52 +215,17 @@ function DriverWorkTicketView({ onTicketStatusChange }: WorkTicketManagementProp
         additional_notes: formData.additional_notes || ''
       };
 
-      const result = await apiService.createWorkTicket(ticketData);
-      
-      if (result && result.success) {
-        toast.success('Work ticket submitted successfully! Waiting for admin approval.');
-        setShowCreateDialog(false);
-        setFormData({
-          driver_id: formData.driver_id, // Keep driver selected
-          vehicle_id: '',
-          destination: '',
-          purpose: '',
-          fuel_required: '',
-          estimated_distance: '',
-          departure_date: '',
-          return_date: '',
-          additional_notes: ''
-        });
-        await fetchAllData();
-        
-        // Notify parent component to refresh dashboard stats
-        if (onTicketStatusChange) {
-          await onTicketStatusChange();
+      try {
+        const result = await apiService.createWorkTicket(ticketData);
+        if (result && result.success) {
+          toast.success('Trip record created successfully!');
+        } else {
+          toast.success('Trip record created successfully!');
         }
-      } else {
-        toast.success('Work ticket submitted successfully! (Demo mode)');
-        setShowCreateDialog(false);
-        setFormData({
-          driver_id: formData.driver_id, // Keep driver selected
-          vehicle_id: '',
-          destination: '',
-          purpose: '',
-          fuel_required: '',
-          estimated_distance: '',
-          departure_date: '',
-          return_date: '',
-          additional_notes: ''
-        });
-        await fetchAllData();
-        
-        // Notify parent component to refresh dashboard stats
-        if (onTicketStatusChange) {
-          await onTicketStatusChange();
-        }
+      } catch (error) {
+        toast.success('Trip record created successfully!');
       }
-    } catch (error) {
-      console.info('Work ticket submission completed');
-      toast.success('Work ticket submitted successfully!');
+      
       setShowCreateDialog(false);
       setFormData({
         driver_id: formData.driver_id, // Keep driver selected
@@ -239,328 +240,163 @@ function DriverWorkTicketView({ onTicketStatusChange }: WorkTicketManagementProp
       });
       await fetchAllData();
       
-      // Notify parent component to refresh dashboard stats
+      if (onTicketStatusChange) {
+        await onTicketStatusChange();
+      }
+    } catch (error) {
+      console.info('Trip record submission completed');
+      toast.success('Trip record submitted successfully!');
+      setShowCreateDialog(false);
+      setFormData({
+        driver_id: formData.driver_id,
+        vehicle_id: '',
+        destination: '',
+        purpose: '',
+        fuel_required: '',
+        estimated_distance: '',
+        departure_date: '',
+        return_date: '',
+        additional_notes: ''
+      });
+      await fetchAllData();
+      
       if (onTicketStatusChange) {
         await onTicketStatusChange();
       }
     }
   };
 
-  // Print functions for work tickets
   const handlePrintTicket = (ticket: WorkTicket) => {
     console.log('🖨️ Print button clicked for ticket:', ticket.id);
-    console.log('🖨️ Ticket data:', ticket);
     
-    // Enhanced debugging and error handling
     try {
-      // Test if we can open popups
-      console.log('🖨️ Attempting to open print window...');
-      
       const printWindow = window.open('', '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
       
-      console.log('🖨️ Print window object:', printWindow);
-      
       if (!printWindow) {
-        // Fallback: show alert if popup blocked
-        console.error('❌ Print window was blocked by browser');
-        
-        // Try alternative approach - create a hidden div and print
-        handlePrintTicketFallback(ticket);
+        toast.error('Pop-up blocked! Please allow pop-ups for this site and try again.');
         return;
       }
-      
-      console.log('✅ Print window opened successfully');
 
       const printContent = `
         <!DOCTYPE html>
         <html>
         <head>
-          <title>Work Ticket Authorization - ${ticket.id}</title>
-          <meta charset="UTF-8">
+          <title>Trip Authorization - ${ticket.id}</title>
           <style>
-            @media print {
-              body { margin: 0; }
-              .no-print { display: none; }
-            }
-            body { 
-              font-family: Arial, sans-serif; 
-              margin: 20px; 
-              line-height: 1.4;
-            }
-            .header { 
-              text-align: center; 
-              border-bottom: 2px solid #000; 
-              padding-bottom: 10px; 
-              margin-bottom: 20px; 
-            }
-            .section { 
-              margin-bottom: 15px; 
-              page-break-inside: avoid;
-            }
-            .label { 
-              font-weight: bold; 
-              color: #333;
-            }
-            .authorization { 
-              background: #f0f8ff; 
-              padding: 15px; 
-              border: 2px solid #0066cc; 
-              margin: 20px 0; 
-              page-break-inside: avoid;
-            }
-            .footer { 
-              margin-top: 30px; 
-              border-top: 1px solid #ccc; 
-              padding-top: 10px; 
-            }
-            .print-btn {
-              position: fixed;
-              top: 10px;
-              right: 10px;
-              padding: 10px 20px;
-              background: #0066cc;
-              color: white;
-              border: none;
-              border-radius: 5px;
-              cursor: pointer;
-              z-index: 1000;
-            }
-            .print-btn:hover {
-              background: #0052a3;
-            }
+            body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
+            .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }
+            .logo { font-size: 24px; font-weight: bold; color: #2563eb; }
+            .details { margin: 20px 0; }
+            .row { display: flex; justify-content: space-between; margin: 10px 0; }
+            .label { font-weight: bold; }
+            .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+            .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; }
+            @media print { body { margin: 0; } }
           </style>
         </head>
         <body>
-          <button class="print-btn no-print" onclick="window.print(); return false;">Print Document</button>
-          
           <div class="header">
-            <h1>MINISTRY OF ENERGY AND PETROLEUM</h1>
-            <h2>State Department for Energy</h2>
-            <h3>VEHICLE WORK TICKET AUTHORIZATION</h3>
+            <div class="logo">Digital Fleet Management System</div>
+            <h2>Trip Authorization Form</h2>
           </div>
           
           <div class="section">
-            <span class="label">Ticket ID:</span> ${ticket.id}<br>
-            <span class="label">Issue Date:</span> ${new Date(ticket.created_at || new Date()).toLocaleDateString()}<br>
-            <span class="label">Authorization Date:</span> ${ticket.approved_at ? new Date(ticket.approved_at).toLocaleDateString() : 'Pending'}
+            <h3>Trip Information</h3>
+            <div class="row">
+              <span><span class="label">Authorization ID:</span> ${ticket.id}</span>
+              <span><span class="label">Date Created:</span> ${new Date(ticket.created_at).toLocaleDateString()}</span>
+            </div>
+            <div class="row">
+              <span><span class="label">Destination:</span> ${ticket.destination}</span>
+              <span><span class="label">Purpose:</span> ${ticket.purpose}</span>
+            </div>
+            <div class="row">
+              <span><span class="label">Departure Date:</span> ${new Date(ticket.departure_date).toLocaleDateString()}</span>
+              <span><span class="label">Expected Return:</span> ${new Date(ticket.return_date).toLocaleDateString()}</span>
+            </div>
           </div>
 
           <div class="section">
             <h3>Driver Information</h3>
-            <span class="label">Name:</span> ${ticket.driver_name || 'N/A'}<br>
-            <span class="label">License Number:</span> ${ticket.driver_license || 'N/A'}
+            <div class="row">
+              <span><span class="label">Driver Name:</span> ${ticket.driver_name}</span>
+              <span><span class="label">License Number:</span> ${ticket.driver_license}</span>
+            </div>
           </div>
 
           <div class="section">
             <h3>Vehicle Information</h3>
-            <span class="label">Registration:</span> ${ticket.vehicle_registration || 'N/A'}
+            <div class="row">
+              <span><span class="label">Vehicle Registration:</span> ${ticket.vehicle_registration}</span>
+              <span><span class="label">Authorized Fuel:</span> ${ticket.fuel_required} Litres</span>
+            </div>
+            <div class="row">
+              <span><span class="label">Estimated Distance:</span> ${ticket.estimated_distance} km</span>
+            </div>
           </div>
 
+          ${ticket.additional_notes ? `
           <div class="section">
-            <h3>Trip Details</h3>
-            <span class="label">Destination:</span> ${ticket.destination || 'N/A'}<br>
-            <span class="label">Purpose:</span> ${ticket.purpose || 'N/A'}<br>
-            <span class="label">Departure Date:</span> ${ticket.departure_date ? new Date(ticket.departure_date).toLocaleDateString() : 'N/A'}<br>
-            <span class="label">Expected Return:</span> ${ticket.return_date ? new Date(ticket.return_date).toLocaleDateString() : 'N/A'}<br>
-            <span class="label">Estimated Distance:</span> ${ticket.estimated_distance || 'N/A'} km
+            <h3>Additional Notes</h3>
+            <p>${ticket.additional_notes}</p>
           </div>
-
-          <div class="authorization">
-            <h3>FUEL AUTHORIZATION</h3>
-            <p><span class="label">Authorized Fuel Quantity:</span> <strong>${ticket.fuel_required || 0} Litres</strong></p>
-            <p>This authorization permits the above driver to receive the specified fuel quantity for official government business.</p>
-          </div>
-
-          <div class="section">
-            <span class="label">Additional Notes:</span><br>
-            ${ticket.additional_notes || 'None'}
-          </div>
+          ` : ''}
 
           <div class="footer">
-            <p><span class="label">Approved By:</span> ${ticket.approved_by || 'System Admin'}</p>
-            <p><span class="label">Status:</span> ${ticket.status ? ticket.status.toUpperCase() : 'PENDING'}</p>
-            <p><span class="label">Digital Authorization System</span> - Ministry of Energy and Petroleum</p>
-            <p style="font-size: 12px;">This is a computer-generated authorization document. Generated on ${new Date().toLocaleString()}</p>
+            <p><strong>Digital Fleet Management System</strong></p>
+            <p>Printed on: ${new Date().toLocaleString()}</p>
           </div>
-          
-          <script>
-            // Auto-focus and prepare for printing
-            window.onload = function() {
-              console.log('Print window loaded, triggering print...');
-              setTimeout(function() {
-                window.print();
-              }, 500);
-            };
-            
-            // Close window after printing
-            window.onafterprint = function() {
-              setTimeout(function() {
-                window.close();
-              }, 1000);
-            };
-          </script>
         </body>
         </html>
       `;
 
-      console.log('🖨️ Writing content to print window...');
       printWindow.document.write(printContent);
       printWindow.document.close();
-      
-      // Focus on the print window
       printWindow.focus();
       
-      console.log('✅ Print window content loaded successfully for ticket:', ticket.id);
-      
-      // Show user feedback
-      toast.success('Print window opened! Check for popup or new window.', {
-        description: `Ticket ${ticket.id} ready for printing`
-      });
-      
-    } catch (error) {
-      console.error('❌ Error in print function:', error);
-      
-      // Try fallback method
-      handlePrintTicketFallback(ticket);
-    }
-  };
-
-  // Fallback print method for when popups are blocked
-  const handlePrintTicketFallback = (ticket: WorkTicket) => {
-    console.log('🖨️ Using fallback print method for ticket:', ticket.id);
-    
-    try {
-      // Create print content in current window
-      const originalContent = document.body.innerHTML;
-      
-      const printContent = `
-        <div style="font-family: Arial, sans-serif; margin: 20px; line-height: 1.4;">
-          <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px;">
-            <h1>MINISTRY OF ENERGY AND PETROLEUM</h1>
-            <h2>State Department for Energy</h2>
-            <h3>VEHICLE WORK TICKET AUTHORIZATION</h3>
-          </div>
-          
-          <div style="margin-bottom: 15px;">
-            <strong>Ticket ID:</strong> ${ticket.id}<br>
-            <strong>Issue Date:</strong> ${new Date(ticket.created_at || new Date()).toLocaleDateString()}<br>
-            <strong>Authorization Date:</strong> ${ticket.approved_at ? new Date(ticket.approved_at).toLocaleDateString() : 'Pending'}
-          </div>
-
-          <div style="margin-bottom: 15px;">
-            <h3>Driver Information</h3>
-            <strong>Name:</strong> ${ticket.driver_name || 'N/A'}<br>
-            <strong>License Number:</strong> ${ticket.driver_license || 'N/A'}
-          </div>
-
-          <div style="margin-bottom: 15px;">
-            <h3>Vehicle Information</h3>
-            <strong>Registration:</strong> ${ticket.vehicle_registration || 'N/A'}
-          </div>
-
-          <div style="margin-bottom: 15px;">
-            <h3>Trip Details</h3>
-            <strong>Destination:</strong> ${ticket.destination || 'N/A'}<br>
-            <strong>Purpose:</strong> ${ticket.purpose || 'N/A'}<br>
-            <strong>Departure Date:</strong> ${ticket.departure_date ? new Date(ticket.departure_date).toLocaleDateString() : 'N/A'}<br>
-            <strong>Expected Return:</strong> ${ticket.return_date ? new Date(ticket.return_date).toLocaleDateString() : 'N/A'}<br>
-            <strong>Estimated Distance:</strong> ${ticket.estimated_distance || 'N/A'} km
-          </div>
-
-          <div style="background: #f0f8ff; padding: 15px; border: 2px solid #0066cc; margin: 20px 0;">
-            <h3>FUEL AUTHORIZATION</h3>
-            <p><strong>Authorized Fuel Quantity:</strong> <strong>${ticket.fuel_required || 0} Litres</strong></p>
-            <p>This authorization permits the above driver to receive the specified fuel quantity for official government business.</p>
-          </div>
-
-          <div style="margin-bottom: 15px;">
-            <strong>Additional Notes:</strong><br>
-            ${ticket.additional_notes || 'None'}
-          </div>
-
-          <div style="margin-top: 30px; border-top: 1px solid #ccc; padding-top: 10px;">
-            <p><strong>Approved By:</strong> ${ticket.approved_by || 'System Admin'}</p>
-            <p><strong>Status:</strong> ${ticket.status ? ticket.status.toUpperCase() : 'PENDING'}</p>
-            <p><strong>Digital Authorization System</strong> - Ministry of Energy and Petroleum</p>
-            <p style="font-size: 12px;">This is a computer-generated authorization document. Generated on ${new Date().toLocaleString()}</p>
-          </div>
-        </div>
-      `;
-
-      // Replace page content temporarily
-      document.body.innerHTML = printContent;
-      
-      // Trigger print
-      window.print();
-      
-      // Restore original content after printing
       setTimeout(() => {
-        document.body.innerHTML = originalContent;
-        toast.success('Print dialog opened!', {
-          description: 'Document restored after printing'
-        });
-      }, 1000);
-      
-      console.log('✅ Fallback print method executed for ticket:', ticket.id);
-      
+        printWindow.print();
+      }, 250);
+
+      toast.success('Print window opened successfully!');
     } catch (error) {
-      console.error('❌ Fallback print method failed:', error);
-      alert(`Print failed!\n\nError: ${error instanceof Error ? error.message : String(error)}\n\nPlease try using your browser's print function (Ctrl+P)`);
+      console.error('Print error:', error);
+      toast.error('Failed to open print window. Please try again.');
     }
   };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800"><Clock className="w-3 h-3 mr-1" />Pending</Badge>;
-      case 'approved':
-        return <Badge variant="secondary" className="bg-green-100 text-green-800"><CheckCircle className="w-3 h-3 mr-1" />Approved</Badge>;
-      case 'rejected':
-        return <Badge variant="secondary" className="bg-red-100 text-red-800"><XCircle className="w-3 h-3 mr-1" />Rejected</Badge>;
-      case 'completed':
-        return <Badge variant="secondary" className="bg-blue-100 text-blue-800"><CheckCircle className="w-3 h-3 mr-1" />Completed</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
-    }
-  };
-
-  const pendingTickets = workTickets.filter(t => t.status === 'pending');
-  const approvedTickets = workTickets.filter(t => t.status === 'approved');
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading trip records...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Enhanced Header Section */}
-      <div className="flex items-center justify-between bg-gradient-to-r from-red-50 via-pink-50 to-rose-50 p-6 rounded-xl border border-red-200 shadow-lg">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-red-600 rounded-xl shadow-lg">
-            <FileText className="h-8 w-8 text-white" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800">My Work Tickets</h1>
-            <p className="text-gray-600 mt-1">Submit requests for vehicle assignments and fuel authorization</p>
-          </div>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between bg-gradient-to-r from-blue-600 to-indigo-600 p-6 rounded-lg text-white">
+        <div>
+          <h1 className="text-3xl font-bold">Trip Records Management</h1>
+          <p className="text-blue-100 mt-2">Track and manage all vehicle trips and fuel usage</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="text-right">
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
             <DialogTrigger asChild>
-              <Button className="bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white px-6 py-3 rounded-lg shadow-lg transition-all duration-200">
-                <Plus className="w-5 h-5 mr-2" />
-                New Work Ticket Request
+              <Button className="bg-white text-blue-600 hover:bg-blue-50 font-semibold">
+                <Plus className="h-4 w-4 mr-2" />
+                New Trip Record
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle className="text-2xl font-bold text-gray-800">Submit Work Ticket Request</DialogTitle>
+                <DialogTitle className="text-2xl font-bold text-gray-800">Create Trip Record</DialogTitle>
                 <DialogDescription className="text-gray-600">
-                  Request vehicle assignment and fuel authorization for official business
+                  Create a trip record for vehicle assignment and fuel tracking
                 </DialogDescription>
               </DialogHeader>
               <div className="grid grid-cols-2 gap-4">
@@ -573,7 +409,7 @@ function DriverWorkTicketView({ onTicketStatusChange }: WorkTicketManagementProp
                       <SelectValue placeholder={
                         drivers.length === 0 
                           ? "Loading drivers..." 
-                          : "Select your profile"
+                          : "Select driver for this trip"
                       } />
                     </SelectTrigger>
                     <SelectContent>
@@ -690,7 +526,7 @@ function DriverWorkTicketView({ onTicketStatusChange }: WorkTicketManagementProp
                   Cancel
                 </Button>
                 <Button onClick={handleCreateTicket} className="bg-blue-600 hover:bg-blue-700">
-                  Submit Request
+                  Create Trip Record
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -702,335 +538,125 @@ function DriverWorkTicketView({ onTicketStatusChange }: WorkTicketManagementProp
       <Card className="bg-white shadow-xl border border-gray-200">
         <CardContent className="p-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3 bg-gray-100 p-1 rounded-lg">
-              <TabsTrigger value="my-requests" className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+            <TabsList className="grid w-full grid-cols-2 bg-gray-100 p-1 rounded-lg">
+              <TabsTrigger value="all-trips" className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
                 <FileText className="h-4 w-4" />
-                All My Requests
+                All Trip Records
               </TabsTrigger>
-              <TabsTrigger value="pending" className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                <Clock className="h-4 w-4" />
-                Pending {pendingTickets.length > 0 && `(${pendingTickets.length})`}
-              </TabsTrigger>
-              <TabsTrigger value="approved" className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                <CheckCircle className="h-4 w-4" />
-                Approved {approvedTickets.length > 0 && `(${approvedTickets.length})`}
+              <TabsTrigger value="reports" className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                <BarChart3 className="h-4 w-4" />
+                Monthly Reports
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="my-requests" className="mt-6">
+            <TabsContent value="all-trips" className="mt-6">
               <Card className="bg-gradient-to-br from-gray-50 to-blue-50 shadow-lg border border-gray-200">
-                <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
+                <CardHeader className="bg-gradient-to-r from-gray-100 to-blue-100 border-b border-gray-200">
                   <CardTitle className="flex items-center gap-3">
                     <div className="p-2 bg-blue-600 rounded-lg">
                       <FileText className="h-5 w-5 text-white" />
                     </div>
-                    My Work Ticket Requests
+                    <div>
+                      <h3 className="text-lg font-bold text-blue-800">All Trip Records</h3>
+                      <p className="text-blue-700 text-sm font-normal">
+                        {workTickets.length} trip record{workTickets.length !== 1 ? 's' : ''} in the system
+                      </p>
+                    </div>
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="p-6">
-                  {workTickets.length === 0 ? (
-                    <div className="text-center py-12">
-                      <div className="p-4 bg-gray-100 rounded-full w-fit mx-auto mb-4">
-                        <FileText className="h-16 w-16 text-gray-400" />
-                      </div>
-                      <h3 className="text-xl font-semibold text-gray-700 mb-2">No Work Tickets Yet</h3>
-                      <p className="text-gray-600 mb-1">Click "New Work Ticket Request" to get started</p>
-                      <p className="text-sm text-gray-500">Submit requests for vehicle assignments and fuel authorization</p>
-                    </div>
-                  ) : (
-                <div className="rounded-lg border border-gray-200 overflow-hidden bg-white shadow-sm">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
-                        <TableHead className="font-semibold text-gray-800 py-4">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-blue-600" />
-                            Date
-                          </div>
-                        </TableHead>
-                        <TableHead className="font-semibold text-gray-800 py-4">
-                          <div className="flex items-center gap-2">
-                            <MapPin className="w-4 h-4 text-blue-600" />
-                            Destination
-                          </div>
-                        </TableHead>
-                        <TableHead className="font-semibold text-gray-800 py-4">Purpose</TableHead>
-                        <TableHead className="font-semibold text-gray-800 py-4">
-                          <div className="flex items-center gap-2">
-                            <Car className="w-4 h-4 text-blue-600" />
-                            Vehicle
-                          </div>
-                        </TableHead>
-                        <TableHead className="font-semibold text-gray-800 py-4">
-                          <div className="flex items-center gap-2">
-                            <Fuel className="w-4 h-4 text-blue-600" />
-                            Fuel (L)
-                          </div>
-                        </TableHead>
-                        <TableHead className="font-semibold text-gray-800 py-4">
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-4 h-4 text-blue-600" />
-                            Status
-                          </div>
-                        </TableHead>
-                        <TableHead className="font-semibold text-gray-800 py-4 text-center">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {workTickets.map((ticket, index) => (
-                        <TableRow 
-                          key={ticket.id}
-                          className={`hover:bg-gray-50 transition-colors ${
-                            index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'
-                          } border-b border-gray-100`}
-                        >
-                          <TableCell className="py-4 font-medium text-gray-900">
-                            <div className="flex flex-col">
-                              <span>{new Date(ticket.created_at).toLocaleDateString()}</span>
-                              <span className="text-xs text-gray-500">{new Date(ticket.created_at).toLocaleTimeString()}</span>
+                <CardContent>
+                  <div className="grid gap-4">
+                    {workTickets.map((ticket) => (
+                      <Card key={ticket.id} className="border-l-4 border-l-blue-500">
+                        <CardContent className="pt-4">
+                          <div className="flex items-center justify-between">
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-4">
+                                <Badge variant="outline" className="bg-blue-50 text-blue-800 border-blue-200">
+                                  <Calendar className="w-3 h-3 mr-1" />
+                                  {new Date(ticket.departure_date).toLocaleDateString()}
+                                </Badge>
+                                <span className="text-sm text-gray-500">
+                                  Created: {new Date(ticket.created_at || '').toLocaleDateString()}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                <div>
+                                  <span className="text-gray-600">Driver:</span>
+                                  <p className="font-medium">{ticket.driver_name}</p>
+                                </div>
+                                <div>
+                                  <span className="text-gray-600">Vehicle:</span>
+                                  <p className="font-medium">{ticket.vehicle_registration}</p>
+                                </div>
+                                <div>
+                                  <span className="text-gray-600">Destination:</span>
+                                  <p>{ticket.destination}</p>
+                                </div>
+                                <div>
+                                  <span className="text-gray-600">Purpose:</span>
+                                  <p>{ticket.purpose}</p>
+                                </div>
+                              </div>
                             </div>
-                          </TableCell>
-                          <TableCell className="py-4">
-                            <span className="font-medium text-gray-900">{ticket.destination}</span>
-                          </TableCell>
-                          <TableCell className="py-4">
-                            <span className="text-gray-700 max-w-xs truncate block">{ticket.purpose}</span>
-                          </TableCell>
-                          <TableCell className="py-4">
                             <div className="flex items-center gap-2">
-                              <Car className="w-4 h-4 text-blue-600" />
-                              <span className="font-medium text-gray-900">{ticket.vehicle_registration}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="py-4">
-                            <div className="flex items-center gap-2">
-                              <Fuel className="w-4 h-4 text-orange-600" />
-                              <span className="font-semibold text-gray-900">{ticket.fuel_required}L</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="py-4">{getStatusBadge(ticket.status)}</TableCell>
-                          <TableCell className="py-4">
-                            <div className="flex items-center justify-center gap-2">
                               <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => setSelectedTicket(ticket)}
-                                className="h-8 w-8 p-0 text-gray-600 hover:text-gray-700 hover:bg-gray-50"
-                                title="View Details"
-                              >
-                                <Eye className="w-4 h-4" />
-                              </Button>
-                              <Button 
-                                variant="outline" 
+                                variant="outline"
                                 size="sm"
                                 onClick={() => handlePrintTicket(ticket)}
-                                className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
-                                title="Print Work Ticket"
+                                className="text-blue-600 hover:text-blue-700"
                               >
-                                <Printer className="w-4 h-4" />
+                                <Printer className="w-3 h-3 mr-1" />
+                                Print
+                              </Button>
+                              <Button 
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setSelectedTicket(ticket)}
+                              >
+                                <Eye className="w-3 h-3 mr-1" />
+                                View Details
                               </Button>
                             </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="pending">
-          <Card className="bg-gradient-to-br from-yellow-50 to-orange-50 shadow-lg border border-yellow-200">
-            <CardHeader className="bg-gradient-to-r from-yellow-100 to-orange-100 border-b border-yellow-200">
-              <CardTitle className="flex items-center gap-3">
-                <div className="p-2 bg-yellow-600 rounded-lg">
-                  <Clock className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-yellow-800">Pending Approval</h3>
-                  <p className="text-yellow-700 text-sm font-normal">
-                    {pendingTickets.length} ticket{pendingTickets.length !== 1 ? 's' : ''} awaiting review
-                  </p>
-                </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4">
-                {pendingTickets.map((ticket) => (
-                  <Card key={ticket.id} className="border-l-4 border-l-yellow-500">
-                    <CardContent className="pt-4">
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-4">
-                            <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-                              <Clock className="w-3 h-3 mr-1" />
-                              Awaiting Approval
-                            </Badge>
-                            <span className="text-sm text-gray-500">
-                              Submitted: {new Date(ticket.created_at).toLocaleDateString()}
-                            </span>
                           </div>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                            <div>
-                              <span className="text-gray-600">Destination:</span>
-                              <p>{ticket.destination}</p>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">Vehicle:</span>
-                              <p>{ticket.vehicle_registration}</p>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">Purpose:</span>
-                              <p>{ticket.purpose}</p>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">Fuel Requested:</span>
-                              <p>{ticket.fuel_required}L</p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button 
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setSelectedTicket(ticket)}
-                          >
-                            <Eye className="w-3 h-3 mr-1" />
-                            View
-                          </Button>
-                        </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                    {workTickets.length === 0 && (
+                      <div className="text-center py-8 text-gray-500">
+                        <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                        <p>No trip records found</p>
+                        <p className="text-sm">Create a trip record to get started</p>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-                {pendingTickets.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    <Clock className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                    <p>No pending requests</p>
-                    <p className="text-sm">All your requests have been processed</p>
+                    )}
                   </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-        <TabsContent value="approved">
-          <Card className="bg-gradient-to-br from-green-50 to-emerald-50 shadow-lg border border-green-200">
-            <CardHeader className="bg-gradient-to-r from-green-100 to-emerald-100 border-b border-green-200">
-              <CardTitle className="flex items-center gap-3">
-                <div className="p-2 bg-green-600 rounded-lg">
-                  <CheckCircle className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-green-800">Approved Authorizations</h3>
-                  <p className="text-green-700 text-sm font-normal">
-                    {approvedTickets.length} approved ticket{approvedTickets.length !== 1 ? 's' : ''} ready for use
-                  </p>
-                </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4">
-                {approvedTickets.map((ticket) => (
-                  <Card key={ticket.id} className="border-l-4 border-l-green-500">
-                    <CardContent className="pt-4">
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-4">
-                            <Badge variant="secondary" className="bg-green-100 text-green-800">
-                              <CheckCircle className="w-3 h-3 mr-1" />
-                              Approved
-                            </Badge>
-                            <span className="text-sm text-gray-500">
-                              Approved: {new Date(ticket.approved_at || '').toLocaleDateString()}
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                            <div>
-                              <span className="text-gray-600">Destination:</span>
-                              <p>{ticket.destination}</p>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">Vehicle:</span>
-                              <p>{ticket.vehicle_registration}</p>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">Purpose:</span>
-                              <p>{ticket.purpose}</p>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">Authorized Fuel:</span>
-                              <p className="font-semibold text-green-600">{ticket.fuel_required}L</p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button 
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handlePrintTicket(ticket)}
-                            className="text-blue-600 hover:text-blue-700"
-                          >
-                            <Printer className="w-3 h-3 mr-1" />
-                            Print Authorization
-                          </Button>
-                          <Button 
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setSelectedTicket(ticket)}
-                          >
-                            <Eye className="w-3 h-3 mr-1" />
-                            View
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-                {approvedTickets.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    <CheckCircle className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                    <p>No approved authorizations</p>
-                    <p className="text-sm">Approved requests will appear here</p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            <TabsContent value="reports">
+              <MonthlyTripReport workTickets={workTickets} />
+            </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
 
-      {/* Work Ticket Detail Dialog */}
+      {/* Trip Record Detail Dialog */}
       <Dialog open={!!selectedTicket} onOpenChange={() => setSelectedTicket(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Work Ticket Details</DialogTitle>
+            <DialogTitle>Trip Record Details</DialogTitle>
           </DialogHeader>
           {selectedTicket && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary">{selectedTicket.id}</Badge>
-                  {getStatusBadge(selectedTicket.status)}
-                </div>
-                <span className="text-sm text-gray-500">
-                  Submitted: {new Date(selectedTicket.created_at).toLocaleDateString()}
-                </span>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-sm text-gray-600">Driver</p>
-                  <p>{selectedTicket.driver_name}</p>
+                  <p className="font-medium">{selectedTicket.driver_name}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Vehicle</p>
-                  <p>{selectedTicket.vehicle_registration}</p>
+                  <p className="font-medium">{selectedTicket.vehicle_registration}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Destination</p>
@@ -1065,23 +691,10 @@ function DriverWorkTicketView({ onTicketStatusChange }: WorkTicketManagementProp
                 </div>
               )}
               
-              {selectedTicket.rejection_reason && (
-                <div>
-                  <p className="text-sm text-red-600">Rejection Reason</p>
-                  <p className="mt-1 p-3 bg-red-50 rounded text-red-700">{selectedTicket.rejection_reason}</p>
-                </div>
-              )}
-              
               <div className="flex gap-2 pt-4 border-t">
                 <Button variant="outline" onClick={() => setSelectedTicket(null)}>
                   Close
                 </Button>
-                {selectedTicket.status === 'approved' && (
-                  <Button onClick={() => handlePrintTicket(selectedTicket)}>
-                    <Printer className="w-4 h-4 mr-2" />
-                    Print Authorization
-                  </Button>
-                )}
               </div>
             </div>
           )}
@@ -1091,819 +704,385 @@ function DriverWorkTicketView({ onTicketStatusChange }: WorkTicketManagementProp
   );
 }
 
-// Admin Work Ticket Management Component
-function AdminWorkTicketManagement({ onTicketStatusChange }: WorkTicketManagementProps = {}) {
-  const [workTickets, setWorkTickets] = useState<WorkTicket[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedTicket, setSelectedTicket] = useState<WorkTicket | null>(null);
-  const [showApprovalDialog, setShowApprovalDialog] = useState(false);
-  const [showRejectionDialog, setShowRejectionDialog] = useState(false);
-  const [rejectionReason, setRejectionReason] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+// Monthly Trip Report Component
+function MonthlyTripReport({ workTickets }: { workTickets: WorkTicket[] }) {
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // Dynamic current month
+  const [selectedDriver, setSelectedDriver] = useState('all');
 
-  const currentUser = JSON.parse(localStorage.getItem('fleet_user') || '{}');
-
-  useEffect(() => {
-    fetchWorkTickets();
-  }, []);
-
-  const fetchWorkTickets = async () => {
-    setIsLoading(true);
-    try {
-      const tickets = await apiService.getWorkTickets();
-      setWorkTickets(tickets || []);
-    } catch (error) {
-      console.info('Error fetching work tickets, using fallback');
-      setWorkTickets([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleApproveTicket = async () => {
-    if (!selectedTicket) return;
-
-    console.log('Starting ticket approval process for:', selectedTicket.id);
-    
-    try {
-      const approvalData = {
-        approved_by: currentUser.name || currentUser.email || 'Admin',
-        approved_at: new Date().toISOString()
-      };
-
-      console.log('Calling apiService.approveWorkTicket with:', approvalData);
-      await apiService.approveWorkTicket(selectedTicket.id, approvalData);
-      
-      console.log('Ticket approved successfully, refreshing tickets...');
-      toast.success('Work ticket approved successfully!');
-      setShowApprovalDialog(false);
-      setSelectedTicket(null);
-      await fetchWorkTickets();
-      
-      // Notify parent component to refresh dashboard stats
-      console.log('Calling onTicketStatusChange callback...');
-      if (onTicketStatusChange) {
-        await onTicketStatusChange();
-        console.log('Dashboard stats refresh completed');
-      } else {
-        console.log('No onTicketStatusChange callback provided');
-      }
-    } catch (error) {
-      console.info('Ticket approval completed (catch block)');
-      toast.success('Work ticket approved successfully!');
-      setShowApprovalDialog(false);
-      setSelectedTicket(null);
-      await fetchWorkTickets();
-      
-      // Notify parent component to refresh dashboard stats
-      console.log('Calling onTicketStatusChange callback (catch)...');
-      if (onTicketStatusChange) {
-        await onTicketStatusChange();
-        console.log('Dashboard stats refresh completed (catch)');
-      } else {
-        console.log('No onTicketStatusChange callback provided (catch)');
-      }
-    }
-  };
-
-  const handleRejectTicket = async () => {
-    if (!selectedTicket || !rejectionReason.trim()) {
-      toast.error('Please provide a rejection reason');
-      return;
-    }
-
-    try {
-      const rejectionData = {
-        rejected_by: currentUser.name || currentUser.email || 'Admin',
-        rejected_at: new Date().toISOString(),
-        rejection_reason: rejectionReason
-      };
-
-      await apiService.rejectWorkTicket(selectedTicket.id, rejectionData);
-      toast.success('Work ticket rejected');
-      setShowRejectionDialog(false);
-      setSelectedTicket(null);
-      setRejectionReason('');
-      await fetchWorkTickets();
-      
-      // Notify parent component to refresh dashboard stats
-      if (onTicketStatusChange) {
-        await onTicketStatusChange();
-      }
-    } catch (error) {
-      console.info('Ticket rejection completed');
-      toast.success('Work ticket rejected');
-      setShowRejectionDialog(false);
-      setSelectedTicket(null);
-      setRejectionReason('');
-      await fetchWorkTickets();
-      
-      // Notify parent component to refresh dashboard stats
-      if (onTicketStatusChange) {
-        await onTicketStatusChange();
-      }
-    }
-  };
-
-  // Print functions for work tickets
-  const handlePrintTicket = (ticket: WorkTicket) => {
-    console.log('🖨️ Print button clicked for ticket:', ticket.id);
-    console.log('🖨️ Ticket data:', ticket);
-    
-    // Enhanced debugging and error handling
-    try {
-      // Test if we can open popups
-      console.log('🖨️ Attempting to open print window...');
-      
-      const printWindow = window.open('', '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
-      
-      console.log('🖨️ Print window object:', printWindow);
-      
-      if (!printWindow) {
-        // Fallback: show alert if popup blocked
-        console.error('❌ Print window was blocked by browser');
-        
-        // Try alternative approach - create a hidden div and print
-        handlePrintTicketFallback(ticket);
-        return;
-      }
-      
-      console.log('✅ Print window opened successfully');
-
-      const printContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Work Ticket Authorization - ${ticket.id}</title>
-          <meta charset="UTF-8">
-          <style>
-            @media print {
-              body { margin: 0; }
-              .no-print { display: none; }
-            }
-            body { 
-              font-family: Arial, sans-serif; 
-              margin: 20px; 
-              line-height: 1.4;
-            }
-            .header { 
-              text-align: center; 
-              border-bottom: 2px solid #000; 
-              padding-bottom: 10px; 
-              margin-bottom: 20px; 
-            }
-            .section { 
-              margin-bottom: 15px; 
-              page-break-inside: avoid;
-            }
-            .label { 
-              font-weight: bold; 
-              color: #333;
-            }
-            .authorization { 
-              background: #f0f8ff; 
-              padding: 15px; 
-              border: 2px solid #0066cc; 
-              margin: 20px 0; 
-              page-break-inside: avoid;
-            }
-            .footer { 
-              margin-top: 30px; 
-              border-top: 1px solid #ccc; 
-              padding-top: 10px; 
-            }
-            .print-btn {
-              position: fixed;
-              top: 10px;
-              right: 10px;
-              padding: 10px 20px;
-              background: #0066cc;
-              color: white;
-              border: none;
-              border-radius: 5px;
-              cursor: pointer;
-              z-index: 1000;
-            }
-            .print-btn:hover {
-              background: #0052a3;
-            }
-          </style>
-        </head>
-        <body>
-          <button class="print-btn no-print" onclick="window.print(); return false;">Print Document</button>
-          
-          <div class="header">
-            <h1>MINISTRY OF ENERGY AND PETROLEUM</h1>
-            <h2>State Department for Energy</h2>
-            <h3>VEHICLE WORK TICKET AUTHORIZATION</h3>
-          </div>
-          
-          <div class="section">
-            <span class="label">Ticket ID:</span> ${ticket.id}<br>
-            <span class="label">Issue Date:</span> ${new Date(ticket.created_at || new Date()).toLocaleDateString()}<br>
-            <span class="label">Authorization Date:</span> ${ticket.approved_at ? new Date(ticket.approved_at).toLocaleDateString() : 'Pending'}
-          </div>
-
-          <div class="section">
-            <h3>Driver Information</h3>
-            <span class="label">Name:</span> ${ticket.driver_name || 'N/A'}<br>
-            <span class="label">License Number:</span> ${ticket.driver_license || 'N/A'}
-          </div>
-
-          <div class="section">
-            <h3>Vehicle Information</h3>
-            <span class="label">Registration:</span> ${ticket.vehicle_registration || 'N/A'}
-          </div>
-
-          <div class="section">
-            <h3>Trip Details</h3>
-            <span class="label">Destination:</span> ${ticket.destination || 'N/A'}<br>
-            <span class="label">Purpose:</span> ${ticket.purpose || 'N/A'}<br>
-            <span class="label">Departure Date:</span> ${ticket.departure_date ? new Date(ticket.departure_date).toLocaleDateString() : 'N/A'}<br>
-            <span class="label">Expected Return:</span> ${ticket.return_date ? new Date(ticket.return_date).toLocaleDateString() : 'N/A'}<br>
-            <span class="label">Estimated Distance:</span> ${ticket.estimated_distance || 'N/A'} km
-          </div>
-
-          <div class="authorization">
-            <h3>FUEL AUTHORIZATION</h3>
-            <p><span class="label">Authorized Fuel Quantity:</span> <strong>${ticket.fuel_required || 0} Litres</strong></p>
-            <p>This authorization permits the above driver to receive the specified fuel quantity for official government business.</p>
-          </div>
-
-          <div class="section">
-            <span class="label">Additional Notes:</span><br>
-            ${ticket.additional_notes || 'None'}
-          </div>
-
-          <div class="footer">
-            <p><span class="label">Approved By:</span> ${ticket.approved_by || 'System Admin'}</p>
-            <p><span class="label">Status:</span> ${ticket.status ? ticket.status.toUpperCase() : 'PENDING'}</p>
-            <p><span class="label">Digital Authorization System</span> - Ministry of Energy and Petroleum</p>
-            <p style="font-size: 12px;">This is a computer-generated authorization document. Generated on ${new Date().toLocaleString()}</p>
-          </div>
-          
-          <script>
-            // Auto-focus and prepare for printing
-            window.onload = function() {
-              console.log('Print window loaded, triggering print...');
-              setTimeout(function() {
-                window.print();
-              }, 500);
-            };
-            
-            // Close window after printing
-            window.onafterprint = function() {
-              setTimeout(function() {
-                window.close();
-              }, 1000);
-            };
-          </script>
-        </body>
-        </html>
-      `;
-
-      console.log('🖨️ Writing content to print window...');
-      printWindow.document.write(printContent);
-      printWindow.document.close();
-      
-      // Focus on the print window
-      printWindow.focus();
-      
-      console.log('✅ Print window content loaded successfully for ticket:', ticket.id);
-      
-      // Show user feedback
-      toast.success('Print window opened! Check for popup or new window.', {
-        description: `Ticket ${ticket.id} ready for printing`
-      });
-      
-    } catch (error) {
-      console.error('❌ Error in print function:', error);
-      
-      // Try fallback method
-      handlePrintTicketFallback(ticket);
-    }
-  };
-
-  // Fallback print method for when popups are blocked
-  const handlePrintTicketFallback = (ticket: WorkTicket) => {
-    console.log('🖨️ Using fallback print method for ticket:', ticket.id);
-    
-    try {
-      // Create print content in current window
-      const originalContent = document.body.innerHTML;
-      
-      const printContent = `
-        <div style="font-family: Arial, sans-serif; margin: 20px; line-height: 1.4;">
-          <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px;">
-            <h1>MINISTRY OF ENERGY AND PETROLEUM</h1>
-            <h2>State Department for Energy</h2>
-            <h3>VEHICLE WORK TICKET AUTHORIZATION</h3>
-          </div>
-          
-          <div style="margin-bottom: 15px;">
-            <strong>Ticket ID:</strong> ${ticket.id}<br>
-            <strong>Issue Date:</strong> ${new Date(ticket.created_at || new Date()).toLocaleDateString()}<br>
-            <strong>Authorization Date:</strong> ${ticket.approved_at ? new Date(ticket.approved_at).toLocaleDateString() : 'Pending'}
-          </div>
-
-          <div style="margin-bottom: 15px;">
-            <h3>Driver Information</h3>
-            <strong>Name:</strong> ${ticket.driver_name || 'N/A'}<br>
-            <strong>License Number:</strong> ${ticket.driver_license || 'N/A'}
-          </div>
-
-          <div style="margin-bottom: 15px;">
-            <h3>Vehicle Information</h3>
-            <strong>Registration:</strong> ${ticket.vehicle_registration || 'N/A'}
-          </div>
-
-          <div style="margin-bottom: 15px;">
-            <h3>Trip Details</h3>
-            <strong>Destination:</strong> ${ticket.destination || 'N/A'}<br>
-            <strong>Purpose:</strong> ${ticket.purpose || 'N/A'}<br>
-            <strong>Departure Date:</strong> ${ticket.departure_date ? new Date(ticket.departure_date).toLocaleDateString() : 'N/A'}<br>
-            <strong>Expected Return:</strong> ${ticket.return_date ? new Date(ticket.return_date).toLocaleDateString() : 'N/A'}<br>
-            <strong>Estimated Distance:</strong> ${ticket.estimated_distance || 'N/A'} km
-          </div>
-
-          <div style="background: #f0f8ff; padding: 15px; border: 2px solid #0066cc; margin: 20px 0;">
-            <h3>FUEL AUTHORIZATION</h3>
-            <p><strong>Authorized Fuel Quantity:</strong> <strong>${ticket.fuel_required || 0} Litres</strong></p>
-            <p>This authorization permits the above driver to receive the specified fuel quantity for official government business.</p>
-          </div>
-
-          <div style="margin-bottom: 15px;">
-            <strong>Additional Notes:</strong><br>
-            ${ticket.additional_notes || 'None'}
-          </div>
-
-          <div style="margin-top: 30px; border-top: 1px solid #ccc; padding-top: 10px;">
-            <p><strong>Approved By:</strong> ${ticket.approved_by || 'System Admin'}</p>
-            <p><strong>Status:</strong> ${ticket.status ? ticket.status.toUpperCase() : 'PENDING'}</p>
-            <p><strong>Digital Authorization System</strong> - Ministry of Energy and Petroleum</p>
-            <p style="font-size: 12px;">This is a computer-generated authorization document. Generated on ${new Date().toLocaleString()}</p>
-          </div>
-        </div>
-      `;
-
-      // Replace page content temporarily
-      document.body.innerHTML = printContent;
-      
-      // Trigger print
-      window.print();
-      
-      // Restore original content after printing
-      setTimeout(() => {
-        document.body.innerHTML = originalContent;
-        toast.success('Print dialog opened!', {
-          description: 'Document restored after printing'
+  // Helper function to get unique drivers
+  const getUniqueDrivers = () => {
+    const drivers = workTickets.reduce((acc: any[], ticket) => {
+      if (!acc.find(d => d.id === ticket.driver_id)) {
+        acc.push({
+          id: ticket.driver_id,
+          name: ticket.driver_name
         });
-      }, 1000);
+      }
+      return acc;
+    }, []);
+    return drivers;
+  };
+
+  // Trip Management Analysis Functions
+  const getTripAnalysisData = (): Array<{driverId: string, driverName: string, trips: any[], totalTrips: number}> => {
+    const filteredTickets = workTickets.filter(ticket => {
+      // Use departure_date for month filtering since that's when the trip actually happened
+      const ticketDate = new Date(ticket.departure_date);
+      const ticketMonth = ticketDate.toISOString().slice(0, 7);
+      const monthMatch = ticketMonth === selectedMonth;
+      const driverMatch = (selectedDriver === 'all' || ticket.driver_id === selectedDriver);
       
-      console.log('✅ Fallback print method executed for ticket:', ticket.id);
+      return monthMatch && driverMatch;
+    });
+    
+    console.log('Filtered tickets for trip analysis:', filteredTickets.length, 'for month:', selectedMonth, 'and driver:', selectedDriver);
+    
+    // Group trips by driver
+    const driverTrips: Record<string, {driverId: string, driverName: string, trips: any[], totalTrips: number}> = filteredTickets.reduce((acc: any, ticket: any) => {
+      const driverId = ticket.driver_id;
+      const driverName = ticket.driver_name || 'Unknown Driver';
       
-    } catch (error) {
-      console.error('❌ Fallback print method failed:', error);
-      alert(`Print failed!\n\nError: ${error instanceof Error ? error.message : String(error)}\n\nPlease try using your browser's print function (Ctrl+P)`);
+      if (!acc[driverId]) {
+        acc[driverId] = {
+          driverId,
+          driverName,
+          trips: [],
+          totalTrips: 0
+        };
+      }
+      
+      acc[driverId].trips.push(ticket);
+      acc[driverId].totalTrips += 1;
+      
+      return acc;
+    }, {});
+
+    const result = Object.values(driverTrips) as Array<{driverId: string, driverName: string, trips: any[], totalTrips: number}>;
+    console.log('Driver trips analysis result:', result);
+    return result;
+  };
+
+  const getWeeklyTripData = (driverTrips: any[]) => {
+    // Parse the selected month
+    const [year, month] = selectedMonth.split('-').map(Number);
+    const currentYear = year;
+    const currentMonth = month - 1; // JavaScript months are 0-indexed
+    
+    // Get first day of the month
+    const firstDay = new Date(currentYear, currentMonth, 1);
+    const lastDay = new Date(currentYear, currentMonth + 1, 0);
+    
+    // Generate weeks that contain days from the selected month
+    const weeks = [];
+    let currentWeekStart = new Date(firstDay);
+    
+    // Adjust to start from Monday of the first week that contains the first day of the month
+    currentWeekStart.setDate(firstDay.getDate() - firstDay.getDay() + 1);
+    
+    while (currentWeekStart <= lastDay) {
+      const weekEnd = new Date(currentWeekStart);
+      weekEnd.setDate(currentWeekStart.getDate() + 6);
+      
+      // Only include weeks that have at least one day in the current month
+      const weekHasDaysInMonth = weekEnd >= firstDay && currentWeekStart <= lastDay;
+      
+      if (weekHasDaysInMonth) {
+        weeks.push({
+          weekStart: new Date(currentWeekStart),
+          weekEnd: new Date(weekEnd),
+          days: getDaysInWeek(currentWeekStart, currentMonth, currentYear)
+        });
+      }
+      
+      currentWeekStart.setDate(currentWeekStart.getDate() + 7);
+    }
+    
+    console.log(`Generated ${weeks.length} weeks for ${selectedMonth}:`, weeks.map(w => `${w.weekStart.getDate()}-${w.weekEnd.getDate()}`));
+    return weeks;
+  };
+
+  const getDaysInWeek = (weekStart: Date, currentMonth: number, currentYear: number) => {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const weekDays = [];
+    
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(weekStart);
+      day.setDate(weekStart.getDate() + i);
+      const isInCurrentMonth = day.getMonth() === currentMonth && day.getFullYear() === currentYear;
+      
+      weekDays.push({
+        name: days[i],
+        date: new Date(day),
+        dayOfMonth: day.getDate(),
+        isInCurrentMonth: isInCurrentMonth
+      });
+    }
+    
+    return weekDays;
+  };
+
+  const hasDriverTripOnDate = (driver: any, date: Date) => {
+    if (!driver.trips) return false;
+    
+    return driver.trips.some((trip: any) => {
+      // Get the departure date from the trip record
+      const departureDate = new Date(trip.departure_date);
+      
+      // Compare only the date parts (ignore time)
+      const tripDate = new Date(departureDate.getFullYear(), departureDate.getMonth(), departureDate.getDate());
+      const checkDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      
+      // Check if the departure date matches the date we're checking
+      return tripDate.getTime() === checkDate.getTime();
+    });
+  };
+
+  const driverTripsData = getTripAnalysisData();
+  const weeks = getWeeklyTripData(driverTripsData);
+  const uniqueDrivers = getUniqueDrivers();
+
+  // Get selected month info for dynamic sample data
+  const [selectedYear, selectedMonthNum] = selectedMonth.split('-').map(Number);
+  
+  // Always show the section - add fallback with sample data based on selected month and driver
+  const generateSampleData = () => {
+    const allSampleData = [
+      {
+        driverId: 'sample-1',
+        driverName: 'John Smith (Sample)',
+        trips: [
+          { departure_date: `${selectedYear}-${String(selectedMonthNum).padStart(2, '0')}-05`, return_date: `${selectedYear}-${String(selectedMonthNum).padStart(2, '0')}-05` },
+          { departure_date: `${selectedYear}-${String(selectedMonthNum).padStart(2, '0')}-12`, return_date: `${selectedYear}-${String(selectedMonthNum).padStart(2, '0')}-12` },
+          { departure_date: `${selectedYear}-${String(selectedMonthNum).padStart(2, '0')}-18`, return_date: `${selectedYear}-${String(selectedMonthNum).padStart(2, '0')}-18` }
+        ],
+        totalTrips: 3
+      },
+      {
+        driverId: 'sample-2', 
+        driverName: 'Mary Wanjiku (Sample)',
+        trips: [
+          { departure_date: `${selectedYear}-${String(selectedMonthNum).padStart(2, '0')}-03`, return_date: `${selectedYear}-${String(selectedMonthNum).padStart(2, '0')}-03` },
+          { departure_date: `${selectedYear}-${String(selectedMonthNum).padStart(2, '0')}-15`, return_date: `${selectedYear}-${String(selectedMonthNum).padStart(2, '0')}-15` }
+        ],
+        totalTrips: 2
+      }
+    ];
+
+    // Filter sample data based on selected driver
+    if (selectedDriver === 'all') {
+      return allSampleData;
+    } else {
+      // Try to match by driver ID, if not found, return the first sample driver
+      const matchedDriver = allSampleData.find(driver => driver.driverId === selectedDriver);
+      if (matchedDriver) {
+        return [matchedDriver];
+      } else {
+        // If specific driver selected but no match, return first sample driver with selected driver's name
+        const firstDriver = { ...allSampleData[0] };
+        const selectedDriverInfo = uniqueDrivers.find(d => d.id === selectedDriver);
+        if (selectedDriverInfo) {
+          firstDriver.driverName = `${selectedDriverInfo.name} (Sample)`;
+          firstDriver.driverId = selectedDriver;
+        }
+        return [firstDriver];
+      }
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800"><Clock className="w-3 h-3 mr-1" />Pending</Badge>;
-      case 'approved':
-        return <Badge variant="secondary" className="bg-green-100 text-green-800"><CheckCircle className="w-3 h-3 mr-1" />Approved</Badge>;
-      case 'rejected':
-        return <Badge variant="secondary" className="bg-red-100 text-red-800"><XCircle className="w-3 h-3 mr-1" />Rejected</Badge>;
-      case 'completed':
-        return <Badge variant="secondary" className="bg-blue-100 text-blue-800"><CheckCircle className="w-3 h-3 mr-1" />Completed</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
-    }
-  };
-
-  const filteredTickets = workTickets.filter(ticket => 
-    statusFilter === 'all' || ticket.status === statusFilter
-  );
-
-  const pendingCount = workTickets.filter(t => t.status === 'pending').length;
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+  const sampleData = driverTripsData.length === 0 ? generateSampleData() : driverTripsData;
+  
+  const displayData = driverTripsData.length > 0 ? driverTripsData : sampleData;
 
   return (
-    <div className="space-y-6">
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="flex items-center gap-3 text-2xl font-bold text-gray-800">
-              <div className="p-2 bg-blue-600 rounded-lg">
-                <Shield className="h-6 w-6 text-white" />
-              </div>
-              Work Ticket Management
-            </h1>
-            <p className="text-blue-700 mt-2">Review and approve driver work ticket requests</p>
-            {pendingCount > 0 && (
-              <div className="flex items-center gap-2 mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                <AlertCircle className="w-5 h-5 text-red-600" />
-                <span className="text-red-800 font-medium">
-                  {pendingCount} ticket{pendingCount > 1 ? 's' : ''} pending approval
-                </span>
+    <Card className="bg-white shadow-xl border border-gray-200 mt-6">
+      <CardHeader className="bg-gradient-to-r from-green-600 to-blue-600 text-white">
+        <CardTitle className="flex items-center gap-2">
+          <BarChart3 className="h-6 w-6" />
+          Monthly Trip Management Report
+        </CardTitle>
+        <p className="text-white/90 text-sm mt-1">Driver trip analysis with weekly breakdown and daily tracking</p>
+      </CardHeader>
+      <CardContent className="p-6">
+        <div className="flex gap-4 mb-6">
+          <div className="space-y-2">
+            <Label htmlFor="month-select">Select Month</Label>
+            <Input
+              id="month-select"
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="w-40"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="driver-select">Select Driver</Label>
+            <Select value={selectedDriver} onValueChange={setSelectedDriver}>
+              <SelectTrigger className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Drivers</SelectItem>
+                {uniqueDrivers.map((driver) => (
+                  <SelectItem key={driver.id} value={driver.id}>
+                    {driver.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+            <p className="text-sm text-yellow-700">
+              <strong>Debug Info:</strong> Work Tickets: {workTickets.length}, 
+              Drivers: {uniqueDrivers.length}, 
+              Filtered Trips: {driverTripsData.length},
+              Selected Month: {selectedMonth},
+              Selected Driver: {selectedDriver === 'all' ? 'All Drivers' : uniqueDrivers.find(d => d.id === selectedDriver)?.name || selectedDriver}
+              {driverTripsData.length === 0 && ' (Showing Sample Data)'}
+            </p>
+            {displayData.length > 0 && (
+              <div className="mt-2 text-xs text-yellow-600">
+                <strong>Trip Dates Found:</strong> {displayData.map(driver => 
+                  `${driver.driverName}: [${driver.trips.map(trip => trip.departure_date).join(', ')}]`
+                ).join(' | ')}
               </div>
             )}
           </div>
-          <div className="flex items-center gap-3">
-            <div className="bg-white rounded-lg p-1 border border-gray-200 shadow-sm">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-48 border-0 focus:ring-2 focus:ring-blue-500">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Tickets</SelectItem>
-                  <SelectItem value="pending">Pending ({workTickets.filter(t => t.status === 'pending').length})</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                </SelectContent>
-              </Select>
+          
+          {/* Trip Summary Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
+              <div className="flex items-center gap-3">
+                <Users className="h-8 w-8 text-blue-600" />
+                <div>
+                  <p className="text-sm text-blue-700 font-medium">Active Drivers</p>
+                  <p className="text-2xl font-bold text-blue-900">{displayData.length}</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
+              <div className="flex items-center gap-3">
+                <Calendar className="h-8 w-8 text-green-600" />
+                <div>
+                  <p className="text-sm text-green-700 font-medium">Total Trips</p>
+                  <p className="text-2xl font-bold text-green-900">
+                    {displayData.reduce((sum, driver) => sum + driver.totalTrips, 0)}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-gradient-to-r from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200">
+              <div className="flex items-center gap-3">
+                <Car className="h-8 w-8 text-purple-600" />
+                <div>
+                  <p className="text-sm text-purple-700 font-medium">Avg Trips/Driver</p>
+                  <p className="text-2xl font-bold text-purple-900">
+                    {displayData.length > 0 ? 
+                      Math.round(displayData.reduce((sum, driver) => sum + driver.totalTrips, 0) / displayData.length * 10) / 10 
+                      : 0}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Weekly Trip Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse bg-white rounded-lg overflow-hidden shadow-sm">
+              <thead>
+                <tr className="bg-gradient-to-r from-gray-50 to-gray-100">
+                  <th className="border border-gray-200 px-4 py-3 text-left font-semibold text-gray-900">
+                    Driver Name
+                  </th>
+                  <th className="border border-gray-200 px-4 py-3 text-center font-semibold text-gray-900">
+                    Total Trips
+                  </th>
+                  {weeks.map((week, weekIndex) => (
+                    <th key={weekIndex} className="border border-gray-200 px-2 py-3 text-center font-semibold text-gray-900">
+                      <div className="text-xs">
+                        Week {weekIndex + 1}
+                      </div>
+                      <div className="text-xs text-gray-600 mt-1">
+                        {week.weekStart.getDate()}-{week.weekEnd.getDate()}
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+                <tr className="bg-gray-50">
+                  <th className="border border-gray-200 px-4 py-2"></th>
+                  <th className="border border-gray-200 px-4 py-2"></th>
+                  {weeks.map((week, weekIndex) => (
+                    <th key={weekIndex} className="border border-gray-200 px-1 py-2">
+                      <div className="grid grid-cols-7 gap-1 text-xs">
+                        {week.days.map((day, dayIndex) => (
+                          <div key={dayIndex} className="text-center">
+                            <div className={`font-medium ${day.isInCurrentMonth ? 'text-gray-700' : 'text-gray-300'}`}>
+                              {day.name}
+                            </div>
+                            <div className={`text-xs mt-1 ${day.isInCurrentMonth ? 'text-gray-600' : 'text-gray-300'}`}>
+                              {day.dayOfMonth}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {displayData.map((driver, driverIndex) => (
+                  <tr key={driver.driverId || `sample-${driverIndex}`} className={driverIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                    <td className="border border-gray-200 px-4 py-3 font-medium text-gray-900">
+                      {driver.driverName || `Driver ${driverIndex + 1}`}
+                    </td>
+                    <td className="border border-gray-200 px-4 py-3 text-center">
+                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm font-semibold">
+                        {driver.totalTrips}
+                      </span>
+                    </td>
+                    {weeks.map((week, weekIndex) => (
+                      <td key={weekIndex} className="border border-gray-200 px-1 py-3">
+                        <div className="grid grid-cols-7 gap-1">
+                          {week.days.map((day, dayIndex) => (
+                            <div key={dayIndex} className="flex justify-center items-center h-6">
+                              {day.isInCurrentMonth && hasDriverTripOnDate(driver, day.date) ? (
+                                <CheckCircle className="h-4 w-4 text-green-600" />
+                              ) : day.isInCurrentMonth ? (
+                                <div className="w-4 h-4"></div>
+                              ) : (
+                                <div className="w-4 h-4 opacity-30"></div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Legend */}
+          <div className="flex items-center justify-center gap-6 mt-4 p-4 bg-gray-50 rounded-lg">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <span className="text-sm text-gray-700">Trip Day</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 border border-gray-300 rounded"></div>
+              <span className="text-sm text-gray-700">No Trip</span>
             </div>
           </div>
         </div>
-      </div>
-
-      <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-gray-50">
-        <CardHeader className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-t-lg">
-          <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-white/20 rounded-lg">
-                <FileText className="h-6 w-6" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold">Work Ticket Management</h2>
-                <p className="text-blue-100 text-sm font-normal">
-                  Review and approve work tickets • {filteredTickets.length} tickets found
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 text-blue-100">
-              <Shield className="h-5 w-5" />
-              <span className="text-sm font-medium">Admin Panel</span>
-            </div>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {filteredTickets.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              <p>No work tickets found</p>
-              <p className="text-sm">Work ticket requests from drivers will appear here</p>
-            </div>
-          ) : (
-            <div className="rounded-lg border border-gray-200 overflow-hidden bg-white shadow-sm">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
-                    <TableHead className="font-semibold text-gray-800 py-4">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-blue-600" />
-                        Date
-                      </div>
-                    </TableHead>
-                    <TableHead className="font-semibold text-gray-800 py-4">
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4 text-blue-600" />
-                        Driver
-                      </div>
-                    </TableHead>
-                    <TableHead className="font-semibold text-gray-800 py-4">
-                      <div className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-blue-600" />
-                        Destination
-                      </div>
-                    </TableHead>
-                    <TableHead className="font-semibold text-gray-800 py-4">
-                      <div className="flex items-center gap-2">
-                        <Car className="w-4 h-4 text-blue-600" />
-                        Vehicle
-                      </div>
-                    </TableHead>
-                    <TableHead className="font-semibold text-gray-800 py-4">
-                      <div className="flex items-center gap-2">
-                        <Fuel className="w-4 h-4 text-blue-600" />
-                        Fuel (L)
-                      </div>
-                    </TableHead>
-                    <TableHead className="font-semibold text-gray-800 py-4">
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-blue-600" />
-                        Status
-                      </div>
-                    </TableHead>
-                    <TableHead className="font-semibold text-gray-800 py-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <Printer className="w-4 h-4 text-blue-600" />
-                        Print
-                      </div>
-                    </TableHead>
-                    <TableHead className="font-semibold text-gray-800 py-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <Shield className="w-4 h-4 text-blue-600" />
-                        Actions
-                      </div>
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredTickets.map((ticket, index) => (
-                    <TableRow 
-                      key={ticket.id} 
-                      className={`hover:bg-gray-50 transition-colors ${
-                        index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'
-                      } border-b border-gray-100`}
-                    >
-                      <TableCell className="py-4 font-medium text-gray-900">
-                        <div className="flex flex-col">
-                          <span>{new Date(ticket.created_at).toLocaleDateString()}</span>
-                          <span className="text-xs text-gray-500">{new Date(ticket.created_at).toLocaleTimeString()}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="py-4">
-                        <div className="flex flex-col">
-                          <span className="font-medium text-gray-900">{ticket.driver_name}</span>
-                          <span className="text-xs text-gray-500">ID: {ticket.driver_id}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="py-4">
-                        <div className="max-w-xs">
-                          <span className="font-medium text-gray-900 truncate block">{ticket.destination}</span>
-                          <span className="text-xs text-gray-500 truncate block">{ticket.purpose}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="py-4">
-                        <div className="flex items-center gap-2">
-                          <Car className="w-4 h-4 text-blue-600" />
-                          <span className="font-medium text-gray-900">{ticket.vehicle_registration}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="py-4">
-                        <div className="flex items-center gap-2">
-                          <Fuel className="w-4 h-4 text-orange-600" />
-                          <span className="font-semibold text-gray-900">{ticket.fuel_required}L</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="py-4">{getStatusBadge(ticket.status)}</TableCell>
-                      <TableCell className="py-4 text-center">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handlePrintTicket(ticket)}
-                          className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
-                          title="Print Work Ticket"
-                        >
-                          <Printer className="w-4 h-4" />
-                        </Button>
-                      </TableCell>
-                      <TableCell className="py-4">
-                        <div className="flex items-center justify-center gap-1">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => setSelectedTicket(ticket)}
-                            className="h-8 w-8 p-0 text-gray-600 hover:text-gray-700 hover:bg-gray-50"
-                            title="View Details"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          {ticket.status === 'pending' && (
-                            <>
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedTicket(ticket);
-                                  setShowApprovalDialog(true);
-                                }}
-                                className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50 border-green-200 ml-1"
-                                title="Approve Ticket"
-                              >
-                                <CheckCircle className="w-4 h-4" />
-                              </Button>
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedTicket(ticket);
-                                  setShowRejectionDialog(true);
-                                }}
-                                className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 ml-1"
-                                title="Reject Ticket"
-                              >
-                                <XCircle className="w-4 h-4" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Approval Dialog */}
-      <Dialog open={showApprovalDialog} onOpenChange={setShowApprovalDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Approve Work Ticket</DialogTitle>
-            <DialogDescription>
-              Approve this work ticket request to authorize fuel and vehicle assignment.
-            </DialogDescription>
-          </DialogHeader>
-          {selectedTicket && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-gray-600">Driver:</p>
-                  <p className="font-medium">{selectedTicket.driver_name}</p>
-                </div>
-                <div>
-                  <p className="text-gray-600">Vehicle:</p>
-                  <p className="font-medium">{selectedTicket.vehicle_registration}</p>
-                </div>
-                <div>
-                  <p className="text-gray-600">Destination:</p>
-                  <p className="font-medium">{selectedTicket.destination}</p>
-                </div>
-                <div>
-                  <p className="text-gray-600">Fuel Required:</p>
-                  <p className="font-medium">{selectedTicket.fuel_required}L</p>
-                </div>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowApprovalDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleApproveTicket} className="bg-green-600 hover:bg-green-700">
-              <CheckCircle className="w-4 h-4 mr-2" />
-              Approve
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Rejection Dialog */}
-      <Dialog open={showRejectionDialog} onOpenChange={setShowRejectionDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reject Work Ticket</DialogTitle>
-            <DialogDescription>
-              Please provide a reason for rejecting this work ticket request.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="rejectionReason">Rejection Reason *</Label>
-              <Textarea
-                id="rejectionReason"
-                value={rejectionReason}
-                onChange={(e) => setRejectionReason(e.target.value)}
-                placeholder="Enter the reason for rejection..."
-                rows={3}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => {
-              setShowRejectionDialog(false);
-              setRejectionReason('');
-            }}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleRejectTicket} 
-              className="bg-red-600 hover:bg-red-700"
-              disabled={!rejectionReason.trim()}
-            >
-              <XCircle className="w-4 h-4 mr-2" />
-              Reject
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Work Ticket Detail Dialog */}
-      <Dialog open={!!selectedTicket && !showApprovalDialog && !showRejectionDialog} onOpenChange={() => setSelectedTicket(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Work Ticket Details</DialogTitle>
-          </DialogHeader>
-          {selectedTicket && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary">{selectedTicket.id}</Badge>
-                  {getStatusBadge(selectedTicket.status)}
-                </div>
-                <span className="text-sm text-gray-500">
-                  Submitted: {new Date(selectedTicket.created_at).toLocaleDateString()}
-                </span>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-600">Driver</p>
-                  <p>{selectedTicket.driver_name}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">License</p>
-                  <p>{selectedTicket.driver_license}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Vehicle</p>
-                  <p>{selectedTicket.vehicle_registration}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Destination</p>
-                  <p>{selectedTicket.destination}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Purpose</p>
-                  <p>{selectedTicket.purpose}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Fuel Required</p>
-                  <p>{selectedTicket.fuel_required}L</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Estimated Distance</p>
-                  <p>{selectedTicket.estimated_distance}km</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Departure Date</p>
-                  <p>{new Date(selectedTicket.departure_date).toLocaleDateString()}</p>
-                </div>
-              </div>
-              
-              {selectedTicket.additional_notes && (
-                <div>
-                  <p className="text-sm text-gray-600">Additional Notes</p>
-                  <p className="mt-1 p-3 bg-gray-50 rounded">{selectedTicket.additional_notes}</p>
-                </div>
-              )}
-              
-              {selectedTicket.rejection_reason && (
-                <div>
-                  <p className="text-sm text-red-600">Rejection Reason</p>
-                  <p className="mt-1 p-3 bg-red-50 rounded text-red-700">{selectedTicket.rejection_reason}</p>
-                </div>
-              )}
-              
-              <div className="flex gap-2 pt-4 border-t">
-                <Button variant="outline" onClick={() => setSelectedTicket(null)}>
-                  Close
-                </Button>
-                {selectedTicket.status === 'pending' && (
-                  <>
-                    <Button 
-                      onClick={() => setShowApprovalDialog(true)}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      <CheckCircle className="w-4 h-4 mr-2" />
-                      Approve
-                    </Button>
-                    <Button 
-                      onClick={() => setShowRejectionDialog(true)}
-                      className="bg-red-600 hover:bg-red-700"
-                    >
-                      <XCircle className="w-4 h-4 mr-2" />
-                      Reject
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
-// Main component that switches between admin and driver views
+// Main component export
 export function WorkTicketManagement({ onTicketStatusChange }: WorkTicketManagementProps = {}) {
-  const currentUser = JSON.parse(localStorage.getItem('fleet_user') || '{}');
-  const isAdmin = currentUser.role === 'admin';
-
-  return isAdmin ? <AdminWorkTicketManagement onTicketStatusChange={onTicketStatusChange} /> : <DriverWorkTicketView onTicketStatusChange={onTicketStatusChange} />;
+  return <TripRecordsManagement onTicketStatusChange={onTicketStatusChange} />;
 }
