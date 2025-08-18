@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "name": "digital-fleet-system",
   "builds": [
     {
       "src": "package.json",
@@ -15,21 +14,5 @@
       "src": "/(.*)",
       "dest": "/index.html"
     }
-  ],
-  "env": {
-    "VITE_SUPABASE_URL": "@vite_supabase_url",
-    "VITE_SUPABASE_ANON_KEY": "@vite_supabase_anon_key",
-    "VITE_APP_TITLE": "@vite_app_title",
-    "VITE_ENABLE_HTTPS": "@vite_enable_https",
-    "VITE_SECURE_COOKIES": "@vite_secure_cookies"
-  },
-  "build": {
-    "env": {
-      "VITE_SUPABASE_URL": "@vite_supabase_url",
-      "VITE_SUPABASE_ANON_KEY": "@vite_supabase_anon_key",
-      "VITE_APP_TITLE": "@vite_app_title",
-      "VITE_ENABLE_HTTPS": "@vite_enable_https",
-      "VITE_SECURE_COOKIES": "@vite_secure_cookies"
-    }
-  }
+  ]
 }
