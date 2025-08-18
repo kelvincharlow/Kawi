@@ -109,6 +109,22 @@ export default function App() {
       const savedUser = localStorage.getItem('fleet_user');
       if (savedUser) {
         setUser(JSON.parse(savedUser));
+        return;
+      }
+
+      // Auto-login demo user for public testing (when deployed)
+      if (import.meta.env.PROD || window.location.hostname.includes('vercel.app')) {
+        const demoUser: User = {
+          id: 'demo-admin-001',
+          email: 'demo@digitalfleet.com',
+          role: 'admin',
+          name: 'Demo Administrator'
+        };
+        
+        console.log('🎮 Demo Mode: Auto-logging in as Demo Administrator');
+        setUser(demoUser);
+        localStorage.setItem('fleet_user', JSON.stringify(demoUser));
+        return;
       }
     } catch (error) {
       console.error('Error checking auth session:', error);
@@ -795,6 +811,24 @@ export default function App() {
         </div>
       </div>
 
+      {/* Demo Welcome Banner - only show in production/vercel */}
+      {(import.meta.env.PROD || window.location.hostname.includes('vercel.app')) && user?.id === 'demo-admin-001' && (
+        <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
+          <div className="w-full px-4 lg:px-6 py-3">
+            <div className="flex items-center justify-center gap-3 text-center">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                <span className="font-medium">🚀 Welcome to the Digital Fleet System Demo!</span>
+              </div>
+              <span className="hidden md:inline text-blue-100">|</span>
+              <span className="text-sm text-blue-100 hidden md:inline">
+                Explore all features - No login required for testing
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="w-full px-4 lg:px-6 py-6 lg:py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {/* Admin Navigation */}
@@ -949,12 +983,17 @@ export default function App() {
       )}
       
       {/* Demo Mode Indicator */}
-      {apiService.isUsingMockData() && (
+      {(apiService.isUsingMockData() || (import.meta.env.PROD || window.location.hostname.includes('vercel.app'))) && (
         <div className="fixed bottom-4 left-4 z-50">
           <div className="bg-blue-100 border border-blue-300 rounded-lg px-3 py-2 text-sm text-blue-800">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-              <span>Demo Mode - Using Sample Data</span>
+              <span>
+                {apiService.isUsingMockData() 
+                  ? 'Demo Mode - Using Sample Data' 
+                  : 'Public Demo - Auto-Login Enabled'
+                }
+              </span>
             </div>
           </div>
         </div>
