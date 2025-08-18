@@ -26,7 +26,7 @@
       "@/*": ["./*"]
     }
   },
-  "include": ["src", "App.tsx", "components/ComponentManagement.tsx", "components/DriverManagement.tsx", "components/VehicleRegistry.tsx", "components/FuelManagement.tsx", "components/MaintenanceManagement.tsx", "components/TransferManagement.tsx", "components/WorkTicketManagement.tsx", "components/ReportsAnalytics.tsx", "components/ServerDebugPanel.tsx", "utils/**/*.ts"],
+  "include": ["vite-env.d.ts", "src", "App.tsx", "components/ComponentManagement.tsx", "components/DriverManagement.tsx", "components/VehicleRegistry.tsx", "components/FuelManagement.tsx", "components/MaintenanceManagement.tsx", "components/TransferManagement.tsx", "components/WorkTicketManagement.tsx", "components/ReportsAnalytics.tsx", "components/ServerDebugPanel.tsx", "utils/**/*.ts"],
   "exclude": ["components/ui/**/*", "supabase/functions/**/*"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
