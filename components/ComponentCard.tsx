@@ -123,7 +123,7 @@ export function ComponentCard({ component, vehicle, onEdit }: ComponentCardProps
         {component.removalDate && (
           <div className="mt-4 p-3 bg-gray-50 rounded-lg">
             <p className="text-sm font-medium text-gray-800 mb-1">Removal Information</p>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <p className="text-xs text-gray-600">Removal Date</p>
                 <p className="text-sm">{formatDate(component.removalDate)}</p>
@@ -141,7 +141,7 @@ export function ComponentCard({ component, vehicle, onEdit }: ComponentCardProps
         {warrantyExpiryDate && (
           <div className="mt-4 p-3 bg-blue-50 rounded-lg">
             <p className="text-sm font-medium text-blue-800 mb-1">Warranty Information</p>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <p className="text-xs text-blue-600">Warranty Period</p>
                 <p className="text-sm">{component.warrantyMonths} months</p>
