@@ -114,7 +114,6 @@ export function VehicleRegistry() {
       const result = await apiService.createVehicle(vehicleData);
       
       if (result.success) {
-        console.log('✅ Vehicle created successfully');
         alert('Vehicle created successfully!');
         setIsAddDialogOpen(false);
         resetForm();

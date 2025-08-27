@@ -145,7 +145,6 @@ export function DriverManagement() {
       const result = await apiService.createDriver(driverData);
       
       if (result.success) {
-        console.log('✅ Driver created successfully');
         setIsAddDriverDialogOpen(false);
         resetDriverForm();
         await fetchAllData();

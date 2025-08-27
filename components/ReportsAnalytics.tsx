@@ -47,22 +47,6 @@ export function ReportsAnalytics() {
       setWorkTickets(workTicketsData || []);
       setDrivers(driversData || []);
       setTransfers([]); // For now, set empty transfers as it's not in apiService
-      
-      // Enhanced debug logging
-      console.log('=== REPORTS & ANALYTICS DATA LOADED ===');
-      console.log('Vehicles loaded:', vehiclesData?.length || 0, vehiclesData);
-      console.log('Fuel records loaded:', fuelData?.length || 0, fuelData);
-      console.log('Maintenance records loaded:', maintenanceData?.length || 0, maintenanceData);
-      console.log('Work Tickets loaded:', workTicketsData?.length || 0);
-      console.log('Drivers loaded:', driversData?.length || 0);
-      
-      // Log sample records to check structure
-      if (fuelData && fuelData.length > 0) {
-        console.log('Sample fuel record:', fuelData[0]);
-      }
-      if (maintenanceData && maintenanceData.length > 0) {
-        console.log('Sample maintenance record:', maintenanceData[0]);
-      }
     } catch (error) {
       console.error('Error fetching data:', error);
       // Set empty arrays as fallback
@@ -91,18 +75,6 @@ export function ReportsAnalytics() {
     // Filter vehicles by their acquisition date
     let filteredVehicles = filterByPeriod(vehicles, selectedPeriod, 'acquisitionDate');
 
-    console.log('=== FILTERING DATA ===');
-    console.log('Selected period:', selectedPeriod);
-    console.log('Selected vehicle:', selectedVehicle);
-    console.log('Total fuel records:', fuelRecords.length);
-    console.log('Filtered fuel records (by period):', filteredFuel.length);
-    console.log('Total maintenance records:', maintenanceRecords.length);
-    console.log('Filtered maintenance records (by period):', filteredMaintenance.length);
-    console.log('Total drivers:', drivers.length);
-    console.log('Filtered drivers (by period):', filteredDrivers.length);
-    console.log('Total vehicles:', vehicles.length);
-    console.log('Filtered vehicles (by period):', filteredVehicles.length);
-
     if (selectedVehicle !== 'all') {
       // Handle both camelCase and snake_case field names for vehicleId
       filteredFuel = filteredFuel.filter(record => 
@@ -117,10 +89,6 @@ export function ReportsAnalytics() {
       
       // For vehicles, if a specific vehicle is selected, only show that vehicle
       filteredVehicles = filteredVehicles.filter(vehicle => vehicle.id === selectedVehicle);
-      
-      console.log('Filtered fuel records (by vehicle):', filteredFuel.length);
-      console.log('Filtered maintenance records (by vehicle):', filteredMaintenance.length);
-      console.log('Filtered vehicles (by vehicle selection):', filteredVehicles.length);
     }
 
     const result = {
@@ -130,8 +98,7 @@ export function ReportsAnalytics() {
       drivers: filteredDrivers,
       vehicles: filteredVehicles
     };
-    
-    console.log('Final filtered data:', result);
+
     return result;
   }, [fuelRecords, maintenanceRecords, transfers, drivers, vehicles, selectedPeriod, selectedVehicle]);
 
@@ -139,14 +106,6 @@ export function ReportsAnalytics() {
 
   const calculateKPIs = () => {
     const { fuel, maintenance } = filteredData;
-    
-    // Debug logging to help identify issues
-    console.log('Calculating KPIs with data:', {
-      fuelRecords: fuel.length,
-      maintenanceRecords: maintenance.length,
-      sampleFuel: fuel[0],
-      sampleMaintenance: maintenance[0]
-    });
     
     // Calculate totals with proper null/undefined handling and field name variations
     const totalFuelCost = fuel.reduce((sum, record) => {
@@ -178,7 +137,6 @@ export function ReportsAnalytics() {
       totalOperationalCost: isNaN(totalFuelCost + totalMaintenanceCost) ? 0 : totalFuelCost + totalMaintenanceCost
     };
 
-    console.log('Calculated KPIs:', result);
     return result;
   };
 

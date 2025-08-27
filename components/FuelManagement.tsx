@@ -116,13 +116,8 @@ export function FuelManagement() {
       setVehicles(vehiclesData || []);
       setBulkAccounts(accountsData || []);
       
-      console.log('📊 Fuel Management Data Loaded:');
-      console.log(`  - Fuel Records: ${(fuelData || []).length}`);
-      console.log(`  - Vehicles: ${(vehiclesData || []).length}`);
-      console.log(`  - Bulk Accounts: ${(accountsData || []).length}`);
-      
       if ((vehiclesData || []).length === 0) {
-        console.log('⚠️ No vehicles found! Add vehicles in Vehicle Registry first.');
+        alert('⚠️ No vehicles found! Add vehicles in Vehicle Registry first.');
       }
     } catch (error) {
       console.info('Error fetching fuel data, using fallback');
@@ -185,13 +180,11 @@ export function FuelManagement() {
 
       console.log('🔄 Submitting fuel record:', fuelData);
       const result = await apiService.createFuelRecord(fuelData);
-      console.log('📝 Fuel record result:', result);
       
       // Handle success/error responses
       if (result.success) {
         // If using bulk account payment, deduct the amount
         if (formData.paymentMethod === 'bulk-account' && formData.bulkAccountId) {
-          console.log('💳 Deducting from bulk account:', formData.bulkAccountId, formData.totalCost);
           const deductResult = await apiService.deductFromBulkAccount(
             formData.bulkAccountId, 
             formData.totalCost,
@@ -199,7 +192,6 @@ export function FuelManagement() {
           );
           
           if (deductResult.success) {
-            console.log('✅ Bulk account deduction successful. New balance:', deductResult.newBalance);
             
             // Immediately update the bulk account balance in the UI
             updateBulkAccountBalance(formData.bulkAccountId, deductResult.newBalance);
@@ -208,7 +200,6 @@ export function FuelManagement() {
             setTimeout(() => setRecentDeduction(null), 5000); // Clear after 5 seconds
             alert(`Fuel record saved to database successfully!\nBulk account balance updated: KSh ${deductResult.newBalance.toLocaleString()}`);
           } else {
-            console.log('⚠️ Bulk account deduction had issues:', deductResult.error);
             alert(`Fuel record saved to database successfully!\nNote: ${deductResult.error || 'Bulk account balance may not reflect immediately'}`);
           }
         } else {

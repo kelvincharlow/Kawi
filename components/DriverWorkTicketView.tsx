@@ -121,12 +121,9 @@ export function DriverWorkTicketView() {
           const userEmailPrefix = currentUser.email?.split('@')[0]?.toLowerCase();
           const nameIncludesEmailPrefix = userEmailPrefix && ticket.driver_name?.toLowerCase().includes(userEmailPrefix);
           
-          console.log(`Ticket ${ticket.id}: name=${ticket.driver_name}, matchesName=${matchesName}, matchesId=${matchesId}, matchesEmail=${matchesEmail}, nameIncludesEmailPrefix=${nameIncludesEmailPrefix}`);
-          
           return matchesName || matchesId || matchesEmail || nameIncludesEmailPrefix;
         });
         
-        console.log('Filtered tickets for current driver:', myTickets);
         setWorkTickets(myTickets);
       } else {
         console.error('Failed to fetch work tickets:', response.status);

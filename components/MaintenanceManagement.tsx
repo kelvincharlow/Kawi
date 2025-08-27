@@ -164,7 +164,6 @@ export function MaintenanceManagement() {
 
       console.log('🔄 Submitting maintenance record:', recordData);
       const result = await apiService.createMaintenanceRecord(recordData);
-      console.log('🔧 Maintenance record result:', result);
       
       if (result.success) {
         alert('Maintenance record saved to database successfully!');
