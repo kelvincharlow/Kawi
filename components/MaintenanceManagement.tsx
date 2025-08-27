@@ -4,7 +4,7 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Badge } from "./ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Textarea } from "./ui/textarea";
 import { Plus, Wrench, Calendar, DollarSign, AlertTriangle, CheckCircle, Search, FileText, Download, Car } from 'lucide-react';
@@ -17,7 +17,7 @@ interface MaintenanceRecord {
   maintenanceType: 'routine' | 'repair' | 'emergency' | 'inspection';
   serviceProvider: string;
   workDescription: string;
-  partsReplaced: string[];
+  partsReplaced: string[] | string;
   cost: number;
   laborCost: number;
   partsCost: number;
@@ -32,8 +32,45 @@ interface MaintenanceRecord {
   createdAt: string;
 }
 
+// Raw record type that can have either camelCase or snake_case fields
+interface RawMaintenanceRecord {
+  id: string;
+  vehicleId?: string;
+  vehicle_id?: string;
+  maintenanceType?: string;
+  maintenance_type?: string;
+  serviceProvider?: string;
+  service_provider?: string;
+  vendor?: string;
+  workDescription?: string;
+  description?: string;
+  partsReplaced?: string[] | string;
+  parts_replaced?: string[] | string;
+  cost?: number;
+  laborCost?: number;
+  labor_cost?: number;
+  partsCost?: number;
+  parts_cost?: number;
+  mileage?: number;
+  odometer_reading?: number;
+  date?: string;
+  service_date?: string;
+  nextServiceDate?: string;
+  next_service_date?: string;
+  nextServiceMileage?: number;
+  next_service_odometer?: number;
+  status?: string;
+  priority?: string;
+  warrantyInfo?: string;
+  warranty_info?: string;
+  notes?: string;
+  createdAt?: string;
+  created_at?: string;
+  [key: string]: any; // Allow additional properties
+}
+
 export function MaintenanceManagement() {
-  const [maintenanceRecords, setMaintenanceRecords] = useState<MaintenanceRecord[]>([]);
+  const [maintenanceRecords, setMaintenanceRecords] = useState<RawMaintenanceRecord[]>([]);
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<string>('all');
@@ -66,13 +103,13 @@ export function MaintenanceManagement() {
   }, []);
 
   useEffect(() => {
-    if (formData.laborCost && formData.partsCost) {
+    if (formData.partsCost || formData.laborCost) {
       setFormData(prev => ({
         ...prev,
-        cost: prev.laborCost + prev.partsCost
+        cost: prev.partsCost + prev.laborCost
       }));
     }
-  }, [formData.laborCost, formData.partsCost]);
+  }, [formData.partsCost, formData.laborCost]);
 
   const fetchMaintenanceRecords = async () => {
     try {
@@ -95,18 +132,55 @@ export function MaintenanceManagement() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!formData.vehicleId || !formData.workDescription || !formData.date) {
+      alert('Please fill in all required fields');
+      return;
+    }
+    
     try {
+      // Find the selected vehicle to get registration
+      const selectedVehicleData = vehicles.find(v => v.id === formData.vehicleId);
+      
       const recordData = {
-        ...formData,
-        partsReplaced: formData.partsReplaced.split(',').map(part => part.trim()).filter(part => part)
+        vehicle_id: formData.vehicleId,
+        vehicle_registration: selectedVehicleData?.registration || selectedVehicleData?.gkNumber || 'Unknown',
+        maintenance_type: formData.maintenanceType,
+        description: formData.workDescription, // Map workDescription to description
+        date: formData.date,
+        odometer_reading: formData.mileage,
+        cost: formData.cost,
+        vendor: formData.serviceProvider, // Map serviceProvider to vendor
+        invoice_number: `MAINT-${Date.now()}`, // Generate invoice number with snake_case
+        parts_replaced: formData.partsReplaced.split(',').map(part => part.trim()).filter(part => part).join(', '),
+        labor_cost: formData.laborCost,
+        parts_cost: formData.partsCost,
+        warranty_info: formData.warrantyInfo,
+        notes: formData.notes,
+        status: formData.status,
+        priority: formData.priority,
+        next_service_date: formData.nextServiceDate,
+        next_service_odometer: formData.nextServiceMileage
       };
 
-      await apiService.createMaintenanceRecord(recordData);
+      console.log('🔄 Submitting maintenance record:', recordData);
+      const result = await apiService.createMaintenanceRecord(recordData);
+      console.log('🔧 Maintenance record result:', result);
+      
+      if (result.success) {
+        alert('Maintenance record saved to database successfully!');
+        setIsAddDialogOpen(false);
+        resetForm();
+        await fetchMaintenanceRecords(); // Refresh data to show new record
+      } else {
+        alert(`Error: ${result.error || 'Failed to create maintenance record'}`);
+      }
+      
       setIsAddDialogOpen(false);
       resetForm();
       fetchMaintenanceRecords();
     } catch (error) {
-      console.error('Error creating maintenance record:', error);
+      console.error('❌ Maintenance record creation error:', error);
+      alert(`Error creating maintenance record: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -135,11 +209,11 @@ export function MaintenanceManagement() {
     return vehicles.find(vehicle => vehicle.id === vehicleId);
   };
 
-  const getFilteredRecords = () => {
+  const getFilteredRecords = (): RawMaintenanceRecord[] => {
     let filtered = maintenanceRecords;
 
     if (selectedVehicle !== 'all') {
-      filtered = filtered.filter(record => record.vehicleId === selectedVehicle);
+      filtered = filtered.filter(record => (record.vehicleId || record.vehicle_id) === selectedVehicle);
     }
 
     if (selectedStatus !== 'all') {
@@ -152,20 +226,25 @@ export function MaintenanceManagement() {
 
     if (searchTerm) {
       filtered = filtered.filter(record => {
-        const vehicle = getVehicleById(record.vehicleId);
+        const normalizedRecord = normalizeRecord(record);
+        const vehicle = getVehicleById(normalizedRecord.vehicleId);
         const vehicleText = vehicle ? `${vehicle.gkNumber} ${vehicle.make} ${vehicle.model}` : '';
         
         return (
-          record.workDescription.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          record.serviceProvider.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (normalizedRecord.workDescription || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (normalizedRecord.serviceProvider || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
           vehicleText.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          record.partsReplaced.some(part => part.toLowerCase().includes(searchTerm.toLowerCase())) ||
-          record.notes.toLowerCase().includes(searchTerm.toLowerCase())
+          getPartsArray(normalizedRecord.partsReplaced).some(part => part.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          (normalizedRecord.notes || '').toLowerCase().includes(searchTerm.toLowerCase())
         );
       });
     }
 
-    return filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return filtered.sort((a, b) => {
+      const dateA = new Date(a.date || a.service_date || '').getTime();
+      const dateB = new Date(b.date || b.service_date || '').getTime();
+      return dateB - dateA;
+    });
   };
 
   const getStatusColor = (status: string) => {
@@ -188,6 +267,68 @@ export function MaintenanceManagement() {
     }
   };
 
+  const getPartsArray = (partsReplaced: string[] | string): string[] => {
+    if (!partsReplaced) return [];
+    if (typeof partsReplaced === 'string') {
+      return partsReplaced.split(',').map(part => part.trim()).filter(part => part);
+    }
+    return Array.isArray(partsReplaced) ? partsReplaced : [];
+  };
+
+  const getDaysUntilService = (nextServiceDate: string): number => {
+    if (!nextServiceDate) return -1;
+    const today = new Date();
+    const serviceDate = new Date(nextServiceDate);
+    const diffTime = serviceDate.getTime() - today.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
+
+  const getServiceUrgency = (daysUntil: number): { level: string; color: string; text: string } => {
+    if (daysUntil < 0) return { level: 'overdue', color: 'bg-red-500', text: 'Overdue' };
+    if (daysUntil <= 7) return { level: 'urgent', color: 'bg-red-500', text: 'Due Soon' };
+    if (daysUntil <= 30) return { level: 'warning', color: 'bg-yellow-500', text: 'Due This Month' };
+    if (daysUntil <= 60) return { level: 'normal', color: 'bg-blue-500', text: 'Scheduled' };
+    return { level: 'future', color: 'bg-gray-500', text: 'Future Service' };
+  };
+
+  const getMaintenanceAge = (date: string): string => {
+    const today = new Date();
+    const maintenanceDate = new Date(date);
+    const diffTime = today.getTime() - maintenanceDate.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return '1 day ago';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+    if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
+    return `${Math.floor(diffDays / 365)} years ago`;
+  };
+
+  // Helper function to normalize maintenance record fields
+  const normalizeRecord = (record: RawMaintenanceRecord): MaintenanceRecord => {
+    return {
+      id: record.id,
+      vehicleId: record.vehicleId || record.vehicle_id || '',
+      maintenanceType: (record.maintenanceType || record.maintenance_type || 'routine') as 'routine' | 'repair' | 'emergency' | 'inspection',
+      serviceProvider: record.serviceProvider || record.service_provider || record.vendor || '',
+      workDescription: record.workDescription || record.description || '',
+      partsReplaced: record.partsReplaced || record.parts_replaced || '',
+      cost: record.cost || 0,
+      laborCost: record.laborCost || record.labor_cost || 0,
+      partsCost: record.partsCost || record.parts_cost || 0,
+      mileage: record.mileage || record.odometer_reading || 0,
+      date: record.date || record.service_date || '',
+      nextServiceDate: record.nextServiceDate || record.next_service_date,
+      nextServiceMileage: record.nextServiceMileage || record.next_service_odometer,
+      status: (record.status || 'scheduled') as 'scheduled' | 'in-progress' | 'completed' | 'cancelled',
+      priority: (record.priority || 'medium') as 'low' | 'medium' | 'high' | 'critical',
+      warrantyInfo: record.warrantyInfo || record.warranty_info,
+      notes: record.notes || '',
+      createdAt: record.createdAt || record.created_at || ''
+    };
+  };
+
   const getMaintenanceTypeIcon = (type: string) => {
     switch (type) {
       case 'routine': return CheckCircle;
@@ -201,9 +342,10 @@ export function MaintenanceManagement() {
   const getCostAnalytics = () => {
     const vehicleCosts: { [key: string]: number } = {};
     
-    maintenanceRecords.forEach(record => {
+    maintenanceRecords.forEach(rawRecord => {
+      const record = normalizeRecord(rawRecord);
       if (record.status === 'completed') {
-        vehicleCosts[record.vehicleId] = (vehicleCosts[record.vehicleId] || 0) + record.cost;
+        vehicleCosts[record.vehicleId] = (vehicleCosts[record.vehicleId] || 0) + (record.cost || 0);
       }
     });
 
@@ -221,20 +363,22 @@ export function MaintenanceManagement() {
     const thirtyDaysFromNow = new Date();
     thirtyDaysFromNow.setDate(today.getDate() + 30);
 
-    return maintenanceRecords.filter(record => 
-      record.nextServiceDate && 
-      new Date(record.nextServiceDate) <= thirtyDaysFromNow &&
-      new Date(record.nextServiceDate) >= today
-    );
+    return maintenanceRecords.filter(rawRecord => {
+      const record = normalizeRecord(rawRecord);
+      return record.nextServiceDate && 
+        new Date(record.nextServiceDate) <= thirtyDaysFromNow &&
+        new Date(record.nextServiceDate) >= today;
+    });
   };
 
   const getMaintenanceStats = () => {
-    const totalRecords = maintenanceRecords.length;
-    const completedRecords = maintenanceRecords.filter(r => r.status === 'completed').length;
-    const inProgressRecords = maintenanceRecords.filter(r => r.status === 'in-progress').length;
-    const totalCost = maintenanceRecords
+    const normalizedRecords = maintenanceRecords.map(normalizeRecord);
+    const totalRecords = normalizedRecords.length;
+    const completedRecords = normalizedRecords.filter(r => r.status === 'completed').length;
+    const inProgressRecords = normalizedRecords.filter(r => r.status === 'in-progress').length;
+    const totalCost = normalizedRecords
       .filter(r => r.status === 'completed')
-      .reduce((sum, r) => sum + r.cost, 0);
+      .reduce((sum, r) => sum + (r.cost || 0), 0);
     
     return {
       totalRecords,
@@ -248,7 +392,8 @@ export function MaintenanceManagement() {
   const exportMaintenanceData = () => {
     const csvContent = [
       ['Date', 'Vehicle', 'Type', 'Provider', 'Description', 'Cost', 'Status', 'Priority'].join(','),
-      ...getFilteredRecords().map(record => {
+      ...getFilteredRecords().map(rawRecord => {
+        const record = normalizeRecord(rawRecord);
         const vehicle = getVehicleById(record.vehicleId);
         const vehicleName = vehicle ? `${vehicle.gkNumber} - ${vehicle.make} ${vehicle.model}` : record.vehicleId;
         return [
@@ -284,7 +429,7 @@ export function MaintenanceManagement() {
           <SelectContent>
             {vehicles.map(vehicle => (
               <SelectItem key={vehicle.id} value={vehicle.id}>
-                {vehicle.gkNumber} - {vehicle.make} {vehicle.model}
+                {vehicle.registration || vehicle.gkNumber || 'Unknown'} - {vehicle.make} {vehicle.model}
               </SelectItem>
             ))}
           </SelectContent>
@@ -528,6 +673,9 @@ export function MaintenanceManagement() {
             <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="text-2xl font-bold text-gray-900">Add Maintenance Record</DialogTitle>
+                <DialogDescription>
+                  Enter the details for the new maintenance record including vehicle, type of service, and costs.
+                </DialogDescription>
               </DialogHeader>
               {maintenanceForm}
             </DialogContent>
@@ -624,7 +772,7 @@ export function MaintenanceManagement() {
                 <SelectItem value="all">All Vehicles</SelectItem>
                 {vehicles.map(vehicle => (
                   <SelectItem key={vehicle.id} value={vehicle.id}>
-                    {vehicle.gkNumber} - {vehicle.make} {vehicle.model}
+                    {vehicle.registration || vehicle.gkNumber || 'Unknown'} - {vehicle.make} {vehicle.model}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -700,7 +848,7 @@ export function MaintenanceManagement() {
                       </div>
                       <div>
                         <span className="font-semibold text-orange-900">
-                          {vehicle ? `${vehicle.gkNumber} - ${vehicle.make} ${vehicle.model}` : record.vehicleId}
+                          {vehicle ? `${vehicle.registration || vehicle.gkNumber || 'Unknown'} - ${vehicle.make} ${vehicle.model}` : record.vehicleId}
                         </span>
                         <p className="text-sm text-orange-700">{record.workDescription}</p>
                       </div>
@@ -721,7 +869,195 @@ export function MaintenanceManagement() {
         </Card>
       )}
 
-      {/* Cost Analytics Chart */}
+      {/* Maintenance Records */}
+      <Card className="shadow-lg border-0">
+        <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+          <CardTitle className="flex items-center gap-3 text-gray-800">
+            <div className="bg-gray-100 p-2 rounded-full">
+              <Wrench className="h-5 w-5 text-gray-600" />
+            </div>
+            <div>
+              <span className="text-xl font-bold">Maintenance Records</span>
+              <p className="text-sm text-gray-600 font-normal mt-1">
+                {getFilteredRecords().length} record(s) found
+              </p>
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-6">
+          <div className="space-y-4">
+            {getFilteredRecords().length === 0 ? (
+              <div className="text-center py-12">
+                <div className="bg-gray-100 p-4 rounded-full w-24 h-24 mx-auto mb-4 flex items-center justify-center">
+                  <Wrench className="h-12 w-12 text-gray-400" />
+                </div>
+                <p className="text-gray-600 text-lg font-medium">No maintenance records found</p>
+                <p className="text-gray-500 text-sm mt-2">Try adjusting your filters or search terms</p>
+              </div>
+            ) : (
+              getFilteredRecords().map((rawRecord) => {
+                const record = normalizeRecord(rawRecord);
+                const vehicle = getVehicleById(record.vehicleId);
+                const MaintenanceIcon = getMaintenanceTypeIcon(record.maintenanceType);
+                const daysUntilService = getDaysUntilService(record.nextServiceDate || '');
+                const urgency = getServiceUrgency(daysUntilService);
+                const maintenanceAge = getMaintenanceAge(record.date);
+                
+                return (
+                  <div key={record.id} className="p-6 border border-gray-200 rounded-xl hover:shadow-lg transition-all duration-300 bg-gradient-to-r from-white to-gray-50 hover:from-blue-50 hover:to-white">
+                    {/* Header Section with Vehicle Info and Status */}
+                    <div className="flex items-start justify-between mb-6">
+                      <div className="flex items-center gap-4">
+                        <div className="p-3 bg-blue-100 rounded-full">
+                          <MaintenanceIcon className="h-6 w-6 text-blue-600" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-xl text-gray-900">
+                            {vehicle ? `${vehicle.registration || vehicle.gkNumber || 'Unknown'}` : record.vehicleId}
+                          </h3>
+                          <p className="text-sm text-gray-600 mt-1">
+                            {vehicle ? `${vehicle.make} ${vehicle.model} ${vehicle.year || ''}`.trim() : 'Vehicle Details Unavailable'}
+                          </p>
+                          <p className="text-xs text-gray-500 capitalize flex items-center gap-2 mt-1">
+                            <span className="font-medium">{record.maintenanceType} Maintenance</span>
+                            <span className="text-gray-400">•</span>
+                            <span>{maintenanceAge}</span>
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
+                        <div className="flex items-center gap-2">
+                          <Badge className={`${getPriorityColor(record.priority)} text-white px-3 py-1 text-xs font-medium`}>
+                            {record.priority.toUpperCase()}
+                          </Badge>
+                          <Badge className={`${getStatusColor(record.status)} text-white px-3 py-1 text-xs font-medium`}>
+                            {record.status.replace('-', ' ').toUpperCase()}
+                          </Badge>
+                        </div>
+                        {record.nextServiceDate && (
+                          <Badge className={`${urgency.color} text-white px-3 py-1 text-xs font-medium`}>
+                            {urgency.text}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Service Provider and Work Description */}
+                    <div className="mb-6 bg-gradient-to-r from-gray-50 to-blue-50 p-4 rounded-lg border border-gray-100">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Service Provider</p>
+                          <p className="font-semibold text-gray-900 mb-3">{record.serviceProvider || 'Not specified'}</p>
+                          <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Work Description</p>
+                          <p className="text-sm text-gray-800 leading-relaxed">{record.workDescription}</p>
+                        </div>
+                        <div className="ml-4 text-right">
+                          <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Total Cost</p>
+                          <p className="font-bold text-2xl text-green-700 flex items-center gap-1">
+                            <DollarSign className="h-5 w-5" />
+                            KES {(record.cost || 0).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Key Metrics Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                      <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
+                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Service Date</p>
+                        <p className="font-medium text-sm flex items-center gap-1 text-gray-900">
+                          <Calendar className="h-4 w-4 text-blue-500" />
+                          {new Date(record.date).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
+                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Current Mileage</p>
+                        <p className="font-bold text-lg text-gray-900">{(record.mileage || 0).toLocaleString()} km</p>
+                      </div>
+                      <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
+                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Labor Cost</p>
+                        <p className="font-medium text-lg text-gray-900">KES {(record.laborCost || 0).toLocaleString()}</p>
+                      </div>
+                    </div>
+
+                    {/* Parts Replaced Section */}
+                    {record.partsReplaced && (
+                      (() => {
+                        const partsArray = getPartsArray(record.partsReplaced);
+                        return partsArray.length > 0 && (
+                          <div className="mb-6">
+                            <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-3">Parts Replaced</p>
+                            <div className="flex flex-wrap gap-2">
+                              {partsArray.map((part, index) => (
+                                <Badge key={index} variant="outline" className="text-xs bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100 transition-colors px-3 py-1">
+                                  {part}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()
+                    )}
+
+                    {/* Next Service Information */}
+                    {record.nextServiceDate && (
+                      <div className="mb-6">
+                        <div className={`p-4 rounded-lg border-2 ${
+                          urgency.level === 'overdue' ? 'bg-red-50 border-red-200' :
+                          urgency.level === 'urgent' ? 'bg-orange-50 border-orange-200' :
+                          urgency.level === 'warning' ? 'bg-yellow-50 border-yellow-200' :
+                          'bg-blue-50 border-blue-200'
+                        }`}>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-1">
+                                <Calendar className="h-4 w-4" />
+                                Next Service Scheduled
+                              </p>
+                              <p className="text-sm text-gray-700">
+                                Due: {new Date(record.nextServiceDate).toLocaleDateString()}
+                                {record.nextServiceMileage && ` or at ${(record.nextServiceMileage || 0).toLocaleString()} km`}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              {daysUntilService >= 0 ? (
+                                <p className="text-lg font-bold text-gray-800">{daysUntilService} days</p>
+                              ) : (
+                                <p className="text-lg font-bold text-red-600">{Math.abs(daysUntilService)} days overdue</p>
+                              )}
+                              <p className="text-xs text-gray-600">remaining</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Warranty Information */}
+                    {record.warrantyInfo && (
+                      <div className="mb-6">
+                        <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
+                          <p className="text-xs text-green-700 font-medium uppercase tracking-wide mb-1">Warranty Information</p>
+                          <p className="text-sm text-green-800">{record.warrantyInfo}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Notes Section */}
+                    {record.notes && (
+                      <div className="pt-4 border-t border-gray-200">
+                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">Additional Notes</p>
+                        <p className="text-sm text-gray-700 bg-gray-50 p-4 rounded-lg leading-relaxed">{record.notes}</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Cost Analytics Chart - Moved to Bottom */}
       <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-gray-50">
         <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
           <CardTitle className="flex items-center gap-3 text-gray-800">
@@ -774,128 +1110,6 @@ export function MaintenanceManagement() {
               </defs>
             </BarChart>
           </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      {/* Maintenance Records */}
-      <Card className="shadow-lg border-0">
-        <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-          <CardTitle className="flex items-center gap-3 text-gray-800">
-            <div className="bg-gray-100 p-2 rounded-full">
-              <Wrench className="h-5 w-5 text-gray-600" />
-            </div>
-            <div>
-              <span className="text-xl font-bold">Maintenance Records</span>
-              <p className="text-sm text-gray-600 font-normal mt-1">
-                {getFilteredRecords().length} record(s) found
-              </p>
-            </div>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6">
-          <div className="space-y-4">
-            {getFilteredRecords().length === 0 ? (
-              <div className="text-center py-12">
-                <div className="bg-gray-100 p-4 rounded-full w-24 h-24 mx-auto mb-4 flex items-center justify-center">
-                  <Wrench className="h-12 w-12 text-gray-400" />
-                </div>
-                <p className="text-gray-600 text-lg font-medium">No maintenance records found</p>
-                <p className="text-gray-500 text-sm mt-2">Try adjusting your filters or search terms</p>
-              </div>
-            ) : (
-              getFilteredRecords().map((record) => {
-                const vehicle = getVehicleById(record.vehicleId);
-                const MaintenanceIcon = getMaintenanceTypeIcon(record.maintenanceType);
-                
-                return (
-                  <div key={record.id} className="p-6 border border-gray-200 rounded-xl hover:shadow-lg transition-all duration-300 bg-gradient-to-r from-white to-gray-50 hover:from-blue-50 hover:to-white">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-4">
-                        <div className="p-3 bg-blue-100 rounded-full">
-                          <MaintenanceIcon className="h-6 w-6 text-blue-600" />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-lg text-gray-900">
-                            {vehicle ? `${vehicle.gkNumber} - ${vehicle.make} ${vehicle.model}` : record.vehicleId}
-                          </h3>
-                          <p className="text-sm text-gray-600 capitalize flex items-center gap-2 mt-1">
-                            <span className="font-medium">{record.maintenanceType}</span>
-                            <span className="text-gray-400">•</span>
-                            <span>{record.serviceProvider}</span>
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <Badge className={`${getPriorityColor(record.priority)} text-white px-3 py-1 text-xs font-medium`}>
-                          {record.priority.toUpperCase()}
-                        </Badge>
-                        <Badge className={`${getStatusColor(record.status)} text-white px-3 py-1 text-xs font-medium`}>
-                          {record.status.replace('-', ' ').toUpperCase()}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-4">
-                      <div className="bg-white p-4 rounded-lg border border-gray-100">
-                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Work Description</p>
-                        <p className="font-medium text-sm text-gray-900">{record.workDescription}</p>
-                      </div>
-                      <div className="bg-white p-4 rounded-lg border border-gray-100">
-                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Cost</p>
-                        <p className="font-bold text-lg flex items-center gap-1 text-green-700">
-                          <DollarSign className="h-4 w-4" />
-                          KES {record.cost.toLocaleString()}
-                        </p>
-                      </div>
-                      <div className="bg-white p-4 rounded-lg border border-gray-100">
-                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Mileage</p>
-                        <p className="font-medium text-lg text-gray-900">{record.mileage.toLocaleString()} km</p>
-                      </div>
-                      <div className="bg-white p-4 rounded-lg border border-gray-100">
-                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Date</p>
-                        <p className="font-medium text-sm flex items-center gap-1 text-gray-900">
-                          <Calendar className="h-4 w-4 text-blue-500" />
-                          {new Date(record.date).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-
-                    {record.partsReplaced && record.partsReplaced.length > 0 && (
-                      <div className="mb-4">
-                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">Parts Replaced</p>
-                        <div className="flex flex-wrap gap-2">
-                          {record.partsReplaced.map((part, index) => (
-                            <Badge key={index} variant="secondary" className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors">
-                              {part}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {record.nextServiceDate && (
-                      <div className="mb-4">
-                        <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
-                          <p className="text-sm font-medium text-blue-800 flex items-center gap-2">
-                            <Calendar className="h-4 w-4" />
-                            Next service due: {new Date(record.nextServiceDate).toLocaleDateString()}
-                            {record.nextServiceMileage && ` at ${record.nextServiceMileage.toLocaleString()} km`}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {record.notes && (
-                      <div className="pt-4 border-t border-gray-200">
-                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">Notes</p>
-                        <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">{record.notes}</p>
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </div>
         </CardContent>
       </Card>
     </div>

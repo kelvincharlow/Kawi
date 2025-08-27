@@ -24,7 +24,9 @@ import {
   CheckCircle,
   Users
 } from 'lucide-react';
+import { ResponsiveLayout, ResponsiveContainer, ResponsiveGrid, ResponsiveCard } from './ui/responsive-layout';
 import { apiService } from '../utils/apiService';
+import { logger, performance as perfMonitor } from '../utils/optimization';
 
 interface WorkTicketManagementProps {
   onTicketStatusChange?: () => Promise<void>;
@@ -122,7 +124,7 @@ function TripRecordsManagement({ onTicketStatusChange }: WorkTicketManagementPro
         ]);
       }
     } catch (error) {
-      console.log('Using mock data for work tickets');
+      logger.log('Using mock data for work tickets');
       setWorkTickets([]);
     }
   };
@@ -140,7 +142,7 @@ function TripRecordsManagement({ onTicketStatusChange }: WorkTicketManagementPro
         ]);
       }
     } catch (error) {
-      console.log('Using mock data for drivers');
+      logger.log('Using mock data for drivers');
       setDrivers([
         { id: '1', name: 'John Doe', license_number: 'DL123456', email: 'john@company.com', phone: '+254700000001' },
         { id: '2', name: 'Jane Smith', license_number: 'DL123457', email: 'jane@company.com', phone: '+254700000002' }
@@ -161,7 +163,7 @@ function TripRecordsManagement({ onTicketStatusChange }: WorkTicketManagementPro
         ]);
       }
     } catch (error) {
-      console.log('Using mock data for vehicles');
+      logger.log('Using mock data for vehicles');
       setVehicles([
         { id: '1', registration_number: 'GK-001-A', make: 'Toyota', model: 'Hilux', status: 'Available' },
         { id: '2', registration_number: 'GK-002-B', make: 'Nissan', model: 'Patrol', status: 'Available' }
@@ -174,7 +176,7 @@ function TripRecordsManagement({ onTicketStatusChange }: WorkTicketManagementPro
     try {
       await Promise.all([fetchWorkTickets(), fetchDrivers(), fetchVehicles()]);
     } catch (error) {
-      console.log('Data fetching completed');
+      logger.log('Data fetching completed');
     } finally {
       setIsLoading(false);
     }
@@ -244,7 +246,7 @@ function TripRecordsManagement({ onTicketStatusChange }: WorkTicketManagementPro
         await onTicketStatusChange();
       }
     } catch (error) {
-      console.info('Trip record submission completed');
+      logger.info('Trip record submission completed');
       toast.success('Trip record submitted successfully!');
       setShowCreateDialog(false);
       setFormData({
@@ -267,7 +269,7 @@ function TripRecordsManagement({ onTicketStatusChange }: WorkTicketManagementPro
   };
 
   const handlePrintTicket = (ticket: WorkTicket) => {
-    console.log('🖨️ Print button clicked for ticket:', ticket.id);
+    logger.log('🖨️ Print button clicked for ticket:', ticket.id);
     
     try {
       const printWindow = window.open('', '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
@@ -360,7 +362,7 @@ function TripRecordsManagement({ onTicketStatusChange }: WorkTicketManagementPro
 
       toast.success('Print window opened successfully!');
     } catch (error) {
-      console.error('Print error:', error);
+      logger.error('Print error:', error);
       toast.error('Failed to open print window. Please try again.');
     }
   };
@@ -377,21 +379,24 @@ function TripRecordsManagement({ onTicketStatusChange }: WorkTicketManagementPro
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between bg-gradient-to-r from-blue-600 to-indigo-600 p-6 rounded-lg text-white">
-        <div>
-          <h1 className="text-3xl font-bold">Trip Records Management</h1>
-          <p className="text-blue-100 mt-2">Track and manage all vehicle trips and fuel usage</p>
-        </div>
-        <div className="text-right">
-          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-            <DialogTrigger asChild>
-              <Button className="bg-white text-blue-600 hover:bg-blue-50 font-semibold">
-                <Plus className="h-4 w-4 mr-2" />
-                New Trip Record
-              </Button>
-            </DialogTrigger>
+    <ResponsiveLayout variant="dashboard">
+      <ResponsiveContainer>
+        {/* Header */}
+        <ResponsiveCard className="mb-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-gradient-to-r from-blue-600 to-indigo-600 p-4 sm:p-6 rounded-lg text-white mb-4">
+            <div className="mb-4 sm:mb-0">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">Trip Records Management</h1>
+              <p className="text-blue-100 mt-1 sm:mt-2 text-sm sm:text-base">Track and manage all vehicle trips and fuel usage</p>
+            </div>
+            <div className="w-full sm:w-auto">
+              <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+                <DialogTrigger asChild>
+                  <Button className="w-full sm:w-auto bg-white text-blue-600 hover:bg-blue-50 font-semibold">
+                    <Plus className="h-4 w-4 mr-2" />
+                    <span className="hidden sm:inline">New Trip Record</span>
+                    <span className="sm:hidden">New Trip</span>
+                  </Button>
+                </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="text-2xl font-bold text-gray-800">Create Trip Record</DialogTitle>
@@ -700,7 +705,9 @@ function TripRecordsManagement({ onTicketStatusChange }: WorkTicketManagementPro
           )}
         </DialogContent>
       </Dialog>
-    </div>
+        </ResponsiveCard>
+      </ResponsiveContainer>
+    </ResponsiveLayout>
   );
 }
 
@@ -735,7 +742,7 @@ function MonthlyTripReport({ workTickets }: { workTickets: WorkTicket[] }) {
       return monthMatch && driverMatch;
     });
     
-    console.log('Filtered tickets for trip analysis:', filteredTickets.length, 'for month:', selectedMonth, 'and driver:', selectedDriver);
+    logger.log('Filtered tickets for trip analysis:', filteredTickets.length, 'for month:', selectedMonth, 'and driver:', selectedDriver);
     
     // Group trips by driver
     const driverTrips: Record<string, {driverId: string, driverName: string, trips: any[], totalTrips: number}> = filteredTickets.reduce((acc: any, ticket: any) => {
@@ -758,7 +765,7 @@ function MonthlyTripReport({ workTickets }: { workTickets: WorkTicket[] }) {
     }, {});
 
     const result = Object.values(driverTrips) as Array<{driverId: string, driverName: string, trips: any[], totalTrips: number}>;
-    console.log('Driver trips analysis result:', result);
+    logger.log('Driver trips analysis result:', result);
     return result;
   };
 
@@ -797,7 +804,7 @@ function MonthlyTripReport({ workTickets }: { workTickets: WorkTicket[] }) {
       currentWeekStart.setDate(currentWeekStart.getDate() + 7);
     }
     
-    console.log(`Generated ${weeks.length} weeks for ${selectedMonth}:`, weeks.map(w => `${w.weekStart.getDate()}-${w.weekEnd.getDate()}`));
+    logger.log(`Generated ${weeks.length} weeks for ${selectedMonth}:`, weeks.map(w => `${w.weekStart.getDate()}-${w.weekEnd.getDate()}`));
     return weeks;
   };
 

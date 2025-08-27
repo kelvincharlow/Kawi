@@ -18,20 +18,27 @@ import {
   CheckCircle,
   Calendar,
   Key,
-  Clock
+  Clock,
+  Menu,
+  X
 } from 'lucide-react';
 import { VehicleRegistry } from './components/VehicleRegistry';
 import { DriverManagement } from './components/DriverManagement';
 import { FuelManagement } from './components/FuelManagement';
 import { MaintenanceManagement } from './components/MaintenanceManagement';
+import { MaintenanceManagementSimple } from './components/MaintenanceManagementSimple';
 import { ComponentManagement } from './components/ComponentManagement';
 import { TransferManagement } from './components/TransferManagement';
 import { ReportsAnalytics } from './components/ReportsAnalytics';
 import { WorkTicketManagement } from './components/WorkTicketManagement';
 import { AuthPage } from './components/AuthPage';
+// Debug components - most were removed as they don't exist
 import { ServerDebugPanel } from './components/ServerDebugPanel';
-import { projectId } from './utils/supabase/info';
+// import { ConnectionDebugPanel } from './components/ConnectionDebugPanel';
+// import { SimpleTest } from './components/SimpleTest';
+import { ResponsiveLayout, ResponsiveContainer } from './components/ui/responsive-layout';
 import { apiService } from './utils/apiService';
+import { logger, performance as perfMonitor } from './utils/optimization';
 
 interface DashboardStats {
   totalVehicles: number;
@@ -61,12 +68,12 @@ interface DriverWorkTicket {
   vehicle_registration?: string;
 }
 
-const API_BASE = `https://${projectId}.supabase.co/functions/v1/server`;
-
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [dbStatus, setDbStatus] = useState<string>('checking');
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
     totalVehicles: 0,
     totalDrivers: 0,
@@ -83,7 +90,26 @@ export default function App() {
   useEffect(() => {
     // Check for existing session on app load
     checkAuthSession();
+    checkDatabaseStatus();
   }, []);
+
+  const checkDatabaseStatus = async () => {
+    try {
+      console.log('🔍 Checking database connection...');
+      await apiService.waitForInitialization();
+      
+      if (apiService.isUsingMockData()) {
+        setDbStatus('mock');
+        console.log('🧪 Using mock data');
+      } else {
+        setDbStatus('live');
+        console.log('🔄 Using live database');
+      }
+    } catch (error) {
+      setDbStatus('error');
+      console.error('❌ Database check failed:', error);
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -98,7 +124,7 @@ export default function App() {
   // Refresh dashboard stats when switching to work tickets tab
   useEffect(() => {
     if (activeTab === 'work-tickets' && user) {
-      console.log('Switching to work tickets tab, refreshing stats...');
+      logger.log('Switching to work tickets tab, refreshing stats...');
       refreshDashboardStats();
     }
   }, [activeTab, user]);
@@ -111,7 +137,7 @@ export default function App() {
         setUser(JSON.parse(savedUser));
       }
     } catch (error) {
-      console.error('Error checking auth session:', error);
+      logger.error('Error checking auth session:', error);
     } finally {
       setIsLoading(false);
     }
@@ -134,7 +160,7 @@ export default function App() {
       setDashboardStats(stats);
     } catch (error) {
       // Gracefully handle stats fetching errors
-      console.info('Dashboard stats unavailable, calculating from available data');
+      logger.info('Dashboard stats unavailable, calculating from available data');
       
       try {
         // Calculate real stats from available data
@@ -170,9 +196,9 @@ export default function App() {
 
   // Function to refresh dashboard stats - will be passed to child components
   const refreshDashboardStats = async () => {
-    console.log('Refreshing dashboard stats...');
+    logger.log('Refreshing dashboard stats...');
     await fetchDashboardStats();
-    console.log('Dashboard stats refreshed');
+    logger.log('Dashboard stats refreshed');
   };
 
   const fetchDriverTickets = async () => {
@@ -197,7 +223,7 @@ export default function App() {
       setDriverTickets(userTickets);
     } catch (error) {
       // Gracefully handle ticket fetching errors
-      console.info('Driver tickets unavailable, showing empty state');
+      logger.info('Driver tickets unavailable, showing empty state');
       setDriverTickets([]);
     }
   };
@@ -656,55 +682,71 @@ export default function App() {
 
   // Show main application if user is authenticated
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Enhanced Header with user info and logout */}
-      <div className="bg-white border-b shadow-sm">
-        <div className="w-full px-4 lg:px-6 py-3 lg:py-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50">
+      {/* Enhanced Modern Header */}
+      <div className="bg-white border-b shadow-lg backdrop-blur-sm bg-white/95">
+        {/* Header background gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/5 via-indigo-600/5 to-purple-600/5 pointer-events-none"></div>
+        <div className="relative w-full px-4 lg:px-6 py-4 lg:py-5">
           {/* Mobile Header */}
           <div className="flex md:hidden items-center justify-between">
-            {/* Mobile - Logo and system info (simplified) */}
-            <div className="flex items-center gap-2">
-              <div className={`p-2 rounded-lg shadow-md ${isAdmin ? 'bg-gradient-to-r from-blue-600 to-indigo-600' : 'bg-gradient-to-r from-green-600 to-emerald-600'}`}>
-                <Car className="h-5 w-5 text-white" />
+            {/* Mobile - Enhanced Logo and system info */}
+            <div className="flex items-center gap-3">
+              <div className={`p-2.5 rounded-xl shadow-lg ${isAdmin ? 'bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600' : 'bg-gradient-to-br from-green-600 via-emerald-600 to-teal-600'} ring-2 ring-white/20`}>
+                <Car className="h-5 w-5 text-white drop-shadow-sm" />
               </div>
               <div className="flex flex-col">
-                <h1 className="text-sm font-bold text-gray-900">
+                <h1 className="text-sm font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
                   {isAdmin ? 'Admin Portal' : 'Driver Portal'}
                 </h1>
                 <div className="flex items-center gap-1 text-xs text-gray-500">
-                  <span>Fleet Management</span>
+                  <span className="font-medium">Fleet Management</span>
+                  <div className={`w-1 h-1 rounded-full ${
+                    dbStatus === 'live' ? 'bg-green-400' : 
+                    dbStatus === 'mock' ? 'bg-yellow-400' : 
+                    'bg-gray-400'
+                  }`}></div>
+                  <span className={`font-medium ${
+                    dbStatus === 'live' ? 'text-green-600' : 
+                    dbStatus === 'mock' ? 'text-yellow-600' : 
+                    'text-gray-600'
+                  }`}>
+                    {dbStatus === 'live' ? 'Live DB' : 
+                     dbStatus === 'mock' ? 'Mock Data' : 
+                     'Checking...'}
+                  </span>
                 </div>
               </div>
             </div>
             
-            {/* Mobile - User info and logout */}
+            {/* Mobile - Enhanced User info and logout */}
             <div className="flex items-center gap-2">
-              {/* Mobile user avatar */}
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-sm ${isAdmin ? 'bg-gradient-to-r from-blue-500 to-indigo-500' : 'bg-gradient-to-r from-green-500 to-emerald-500'}`}>
+              {/* Mobile user avatar with glow effect */}
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg ${isAdmin ? 'bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-500 ring-2 ring-blue-200' : 'bg-gradient-to-br from-green-500 via-emerald-500 to-teal-500 ring-2 ring-green-200'}`}>
                 {user.name ? user.name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
               </div>
               
-              {/* Mobile logout button */}
+              {/* Mobile logout button with enhanced styling */}
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleLogout}
-                className="p-2 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-colors"
+                className="p-2 hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-all duration-200 border-gray-200 hover:shadow-md"
               >
                 <LogOut className="h-4 w-4" />
               </Button>
             </div>
           </div>
 
-          {/* Mobile - Quick actions row */}
-          <div className="flex md:hidden items-center justify-center gap-2 mt-3 pt-3 border-t border-gray-100">
-            {/* Mobile new request */}
+          {/* Mobile - Enhanced Quick actions row */}
+          <div className="flex md:hidden items-center justify-center gap-2 mt-4 pt-3 border-t border-gray-100">
+            {/* Mobile new request with gradient */}
             {isDriver && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setActiveTab('work-tickets')}
-                className="text-blue-600 border-blue-200 hover:bg-blue-50 font-medium flex-1"
+                className="text-blue-600 border-blue-200 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 font-medium flex-1 transition-all duration-200 hover:shadow-md"
               >
                 <Plus className="h-3 w-3 mr-1" />
                 New Request
@@ -712,68 +754,94 @@ export default function App() {
             )}
           </div>
 
-          {/* Desktop Header */}
+          {/* Enhanced Desktop Header */}
           <div className="hidden md:flex items-center justify-between">
-            {/* Left side - Logo and system info */}
-            <div className="flex items-center gap-4">
-              <div className={`p-3 rounded-xl shadow-md ${isAdmin ? 'bg-gradient-to-r from-blue-600 to-indigo-600' : 'bg-gradient-to-r from-green-600 to-emerald-600'}`}>
-                <Car className="h-7 w-7 text-white" />
+            {/* Left side - Enhanced Logo and system info */}
+            <div className="flex items-center gap-5">
+              <div className={`p-4 rounded-2xl shadow-xl ${isAdmin ? 'bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600' : 'bg-gradient-to-br from-green-600 via-emerald-600 to-teal-600'} ring-4 ring-white/30 hover:scale-105 transition-transform duration-200`}>
+                <Car className="h-7 w-7 text-white drop-shadow-lg" />
               </div>
               <div className="flex flex-col">
-                <h1 className="text-lg font-bold text-gray-900">
+                <h1 className="text-xl font-bold bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 bg-clip-text text-transparent">
                   {isAdmin ? 'Administrator Portal' : 'Driver Portal'}
                 </h1>
-                <div className="flex items-center gap-2 text-sm text-gray-500">
-                  <span>Fleet Management System</span>
-                  <span>•</span>
-                  <span className="hidden lg:inline">Ministry of Energy and Petroleum</span>
-                  <span className="lg:hidden">Ministry of Energy</span>
+                <div className="flex items-center gap-3 text-sm text-gray-600">
+                  <span className="font-semibold">Fleet Management System</span>
+                  <div className="flex items-center gap-1">
+                    <div className={`w-2 h-2 rounded-full animate-pulse shadow-sm ${
+                      dbStatus === 'live' ? 'bg-green-400' :
+                      dbStatus === 'mock' ? 'bg-yellow-400' :
+                      'bg-red-400'
+                    }`}></div>
+                    <span className={`font-medium text-xs ${
+                      dbStatus === 'live' ? 'text-green-600' :
+                      dbStatus === 'mock' ? 'text-yellow-600' :
+                      'text-red-600'
+                    }`}>
+                      {dbStatus === 'live' ? 'LIVE DB' :
+                       dbStatus === 'mock' ? 'MOCK DATA' :
+                       'CONNECTING...'}
+                    </span>
+                  </div>
+                  <span className="text-gray-400">•</span>
+                  <span className="hidden lg:inline font-medium bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Ministry of Energy and Petroleum</span>
+                  <span className="lg:hidden font-medium bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Ministry of Energy</span>
                 </div>
               </div>
             </div>
             
-            {/* Center - Quick actions and notifications */}
-            <div className="flex items-center gap-3">
-              {/* Driver quick actions */}
+            {/* Center - Enhanced Quick actions and notifications */}
+            <div className="flex items-center gap-4">
+              {/* Driver quick actions with enhanced styling */}
               {isDriver && (
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setActiveTab('work-tickets')}
-                  className="text-blue-600 border-blue-200 hover:bg-blue-50 font-medium"
+                  className="text-blue-600 border-blue-300 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 font-semibold transition-all duration-200 hover:shadow-lg hover:scale-105 ring-1 ring-blue-100"
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   New Request
                 </Button>
               )}
+              
+              {/* Time and date display */}
+              <div className="hidden lg:flex items-center gap-3 px-4 py-2 bg-gradient-to-r from-gray-50 to-blue-50 rounded-xl border border-gray-200 shadow-sm">
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <div className="w-3 h-3 bg-blue-400 rounded-full animate-pulse"></div>
+                  <span className="font-medium">{new Date().toLocaleDateString()}</span>
+                  <span className="text-gray-400">•</span>
+                  <span className="font-mono text-blue-600">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+              </div>
             </div>
             
-            {/* Right side - User info and logout */}
+            {/* Right side - Enhanced User info and logout */}
             <div className="flex items-center gap-4">
               {/* Enhanced User Profile Section */}
-              <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-gray-50 border">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold ${isAdmin ? 'bg-gradient-to-r from-blue-500 to-indigo-500' : 'bg-gradient-to-r from-green-500 to-emerald-500'}`}>
+              <div className="flex items-center gap-4 px-5 py-3 rounded-2xl bg-gradient-to-r from-gray-50 via-white to-gray-50 border border-gray-200 shadow-lg hover:shadow-xl transition-all duration-200">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold shadow-lg ${isAdmin ? 'bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-500 ring-2 ring-blue-200' : 'bg-gradient-to-br from-green-500 via-emerald-500 to-teal-500 ring-2 ring-green-200'} hover:scale-105 transition-transform duration-200`}>
                   {user.name ? user.name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
                 </div>
                 <div className="flex flex-col">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-gray-900">
+                    <span className="text-sm font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
                       {user.name || user.email.split('@')[0]}
                     </span>
                     <Badge 
                       variant="secondary" 
-                      className={`text-xs font-medium ${isAdmin ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}
+                      className={`text-xs font-bold shadow-sm ${isAdmin ? 'bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 border-blue-200' : 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 border-green-200'}`}
                     >
                       {isAdmin ? 'Administrator' : 'Driver'}
                     </Badge>
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <span className="hidden xl:inline">{user.email}</span>
-                    <span className="xl:hidden">{user.email.split('@')[0]}</span>
+                  <div className="flex items-center gap-2 text-xs text-gray-600">
+                    <span className="hidden xl:inline font-medium">{user.email}</span>
+                    <span className="xl:hidden font-medium">{user.email.split('@')[0]}</span>
                     {isDriver && user.driverId && (
                       <>
-                        <span>•</span>
-                        <span>ID: {user.driverId}</span>
+                        <span className="text-gray-400">•</span>
+                        <span className="font-semibold text-blue-600">ID: {user.driverId}</span>
                       </>
                     )}
                   </div>
@@ -785,7 +853,7 @@ export default function App() {
                 variant="outline"
                 size="sm"
                 onClick={handleLogout}
-                className="flex items-center gap-2 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-colors"
+                className="flex items-center gap-2 hover:bg-gradient-to-r hover:from-red-50 hover:to-pink-50 hover:border-red-300 hover:text-red-600 transition-all duration-200 border-gray-300 shadow-md hover:shadow-lg font-semibold px-4 py-2"
               >
                 <LogOut className="h-4 w-4" />
                 <span className="font-medium hidden lg:inline">Logout</span>
@@ -943,11 +1011,6 @@ export default function App() {
         </Tabs>
       </div>
       
-      {/* Debug Panel - only show for admins or in development */}
-      {(isAdmin || process.env.NODE_ENV === 'development') && (
-        <ServerDebugPanel apiBase={API_BASE} />
-      )}
-      
       {/* Demo Mode Indicator */}
       {apiService.isUsingMockData() && (
         <div className="fixed bottom-4 left-4 z-50">
@@ -959,6 +1022,11 @@ export default function App() {
           </div>
         </div>
       )}
+      
+      {/* Development diagnostic tools removed - components don't exist */}
+      {/* All debug components have been cleaned up for production */}
+      
+      {/* Maintenance components removed - using MaintenanceManagement in main UI */}
     </div>
   );
 }

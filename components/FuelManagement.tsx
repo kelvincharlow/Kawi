@@ -15,6 +15,7 @@ import { apiService } from '../utils/apiService';
 interface FuelRecord {
   id: string;
   vehicle_id: string;
+  vehicle_registration?: string;
   fuel_type: string;
   quantity: number;
   cost_per_liter: number;
@@ -55,6 +56,7 @@ export function FuelManagement() {
   const [selectedVehicle, setSelectedVehicle] = useState<string>('all');
   const [selectedPeriod, setSelectedPeriod] = useState<string>('month');
   const [activeTab, setActiveTab] = useState<'records' | 'accounts' | 'analytics'>('records');
+  const [recentDeduction, setRecentDeduction] = useState<{accountId: string, amount: number} | null>(null);
 
   const [formData, setFormData] = useState({
     vehicleId: '',
@@ -105,15 +107,23 @@ export function FuelManagement() {
   const fetchAllData = async () => {
     setIsLoading(true);
     try {
-      const [fuelData, vehiclesData, accountsData] = await Promise.all([
-        apiService.getFuelRecords(),
-        apiService.getVehicles(),
-        apiService.getBulkAccounts()
-      ]);
+      // Fetch data separately to avoid one failure affecting others
+      const fuelData = await apiService.getFuelRecords().catch(() => []);
+      const vehiclesData = await apiService.getVehicles().catch(() => []);
+      const accountsData = await apiService.getBulkAccounts().catch(() => []);
       
       setFuelRecords(fuelData || []);
       setVehicles(vehiclesData || []);
       setBulkAccounts(accountsData || []);
+      
+      console.log('📊 Fuel Management Data Loaded:');
+      console.log(`  - Fuel Records: ${(fuelData || []).length}`);
+      console.log(`  - Vehicles: ${(vehiclesData || []).length}`);
+      console.log(`  - Bulk Accounts: ${(accountsData || []).length}`);
+      
+      if ((vehiclesData || []).length === 0) {
+        console.log('⚠️ No vehicles found! Add vehicles in Vehicle Registry first.');
+      }
     } catch (error) {
       console.info('Error fetching fuel data, using fallback');
       setFuelRecords([]);
@@ -122,6 +132,15 @@ export function FuelManagement() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Function to update bulk account balance locally (optimistic update)
+  const updateBulkAccountBalance = (accountId: string, newBalance: number) => {
+    setBulkAccounts(prev => prev.map(account => 
+      account.id === accountId 
+        ? { ...account, current_balance: newBalance }
+        : account
+    ));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -136,17 +155,25 @@ export function FuelManagement() {
     if (formData.paymentMethod === 'bulk-account' && formData.bulkAccountId) {
       const account = bulkAccounts.find(acc => acc.id === formData.bulkAccountId);
       if (account && account.current_balance < formData.totalCost) {
-        alert('Insufficient bulk account balance. Please deposit funds or use alternative payment method.');
+        alert(`Insufficient bulk account balance!\n\nAccount: ${account.account_name}\nAvailable: KSh ${account.current_balance.toLocaleString()}\nRequired: KSh ${formData.totalCost.toLocaleString()}\n\nPlease deposit funds or use alternative payment method.`);
+        return;
+      }
+      if (!account) {
+        alert('Selected bulk account not found. Please select a valid account.');
         return;
       }
     }
     
     try {
+      // Find the selected vehicle to get registration
+      const selectedVehicleData = vehicles.find(v => v.id === formData.vehicleId);
+      
       const fuelData = {
         vehicle_id: formData.vehicleId,
+        vehicle_registration: selectedVehicleData?.registration || selectedVehicleData?.gkNumber || 'Unknown',
         fuel_type: formData.fuelType,
         quantity: formData.fuelAmount,
-        cost_per_liter: formData.costPerLiter,
+        unit_price: formData.costPerLiter, // Fixed: changed from cost_per_liter to unit_price
         total_cost: formData.totalCost,
         odometer_reading: formData.mileage,
         fuel_station: formData.supplier || 'Unknown Station',
@@ -156,15 +183,47 @@ export function FuelManagement() {
         bulk_account_id: formData.paymentMethod === 'bulk-account' ? formData.bulkAccountId : null
       };
 
-      await apiService.createFuelRecord(fuelData);
+      console.log('🔄 Submitting fuel record:', fuelData);
+      const result = await apiService.createFuelRecord(fuelData);
+      console.log('📝 Fuel record result:', result);
+      
+      // Handle success/error responses
+      if (result.success) {
+        // If using bulk account payment, deduct the amount
+        if (formData.paymentMethod === 'bulk-account' && formData.bulkAccountId) {
+          console.log('💳 Deducting from bulk account:', formData.bulkAccountId, formData.totalCost);
+          const deductResult = await apiService.deductFromBulkAccount(
+            formData.bulkAccountId, 
+            formData.totalCost,
+            `Fuel purchase - ${formData.fuelAmount}L ${formData.fuelType}`
+          );
+          
+          if (deductResult.success) {
+            console.log('✅ Bulk account deduction successful. New balance:', deductResult.newBalance);
+            
+            // Immediately update the bulk account balance in the UI
+            updateBulkAccountBalance(formData.bulkAccountId, deductResult.newBalance);
+            
+            setRecentDeduction({accountId: formData.bulkAccountId, amount: formData.totalCost});
+            setTimeout(() => setRecentDeduction(null), 5000); // Clear after 5 seconds
+            alert(`Fuel record saved to database successfully!\nBulk account balance updated: KSh ${deductResult.newBalance.toLocaleString()}`);
+          } else {
+            console.log('⚠️ Bulk account deduction had issues:', deductResult.error);
+            alert(`Fuel record saved to database successfully!\nNote: ${deductResult.error || 'Bulk account balance may not reflect immediately'}`);
+          }
+        } else {
+          alert('Fuel record saved to database successfully!');
+        }
+      } else {
+        alert(`Error creating fuel record: ${result.error || 'Unknown error'}`);
+      }
+      
       setIsAddDialogOpen(false);
       resetForm();
       await fetchAllData();
     } catch (error) {
-      console.info('Fuel record creation completed');
-      setIsAddDialogOpen(false);
-      resetForm();
-      await fetchAllData();
+      console.error('❌ Fuel record creation error:', error);
+      alert(`Error creating fuel record: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -189,15 +248,19 @@ export function FuelManagement() {
         fuel_types: 'petrol,diesel'
       };
 
-      await apiService.createBulkAccount(accountData);
-      setIsAccountDialogOpen(false);
-      resetAccountForm();
-      await fetchAllData();
+      const result = await apiService.createBulkAccount(accountData);
+      
+      if (result.success) {
+        alert('Bulk account created successfully!');
+        setIsAccountDialogOpen(false);
+        resetAccountForm();
+        await fetchAllData();
+      } else {
+        alert(`Error creating bulk account: ${result.error}`);
+      }
     } catch (error) {
-      console.info('Bulk account creation completed');
-      setIsAccountDialogOpen(false);
-      resetAccountForm();
-      await fetchAllData();
+      console.error('Bulk account creation error:', error);
+      alert(`Error creating bulk account: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -309,14 +372,20 @@ export function FuelManagement() {
         <Label htmlFor="vehicleId">Vehicle*</Label>
         <Select value={formData.vehicleId} onValueChange={(value) => setFormData({...formData, vehicleId: value})}>
           <SelectTrigger>
-            <SelectValue placeholder="Select a vehicle" />
+            <SelectValue placeholder={vehicles.length === 0 ? "No vehicles available - Add vehicles first" : "Select a vehicle"} />
           </SelectTrigger>
           <SelectContent>
-            {vehicles.map(vehicle => (
-              <SelectItem key={vehicle.id} value={vehicle.id}>
-                {vehicle.gkNumber} - {vehicle.make} {vehicle.model}
+            {vehicles.length === 0 ? (
+              <SelectItem value="" disabled>
+                No vehicles found. Please add vehicles in Vehicle Registry first.
               </SelectItem>
-            ))}
+            ) : (
+              vehicles.map(vehicle => (
+                <SelectItem key={vehicle.id} value={vehicle.id}>
+                  {vehicle.registration || vehicle.gkNumber || 'Unknown'} - {vehicle.make} {vehicle.model}
+                </SelectItem>
+              ))
+            )}
           </SelectContent>
         </Select>
       </div>
@@ -426,11 +495,22 @@ export function FuelManagement() {
                 <SelectValue placeholder="Select account" />
               </SelectTrigger>
               <SelectContent>
-                {bulkAccounts.filter(account => account.status === 'active').map(account => (
-                  <SelectItem key={account.id} value={account.id}>
-                    {account.account_name} (KSh {account.current_balance.toLocaleString()})
-                  </SelectItem>
-                ))}
+                {bulkAccounts.filter(account => account.status === 'active').map(account => {
+                  const hasInsufficientBalance = account.current_balance < formData.totalCost;
+                  return (
+                    <SelectItem key={account.id} value={account.id} disabled={hasInsufficientBalance}>
+                      <div className="flex items-center justify-between w-full">
+                        <span className={hasInsufficientBalance ? "text-red-500" : ""}>
+                          {account.account_name}
+                        </span>
+                        <span className={`ml-2 ${hasInsufficientBalance ? "text-red-500" : "text-green-600"}`}>
+                          KSh {account.current_balance.toLocaleString()}
+                          {hasInsufficientBalance && " ⚠️"}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>
@@ -508,6 +588,7 @@ export function FuelManagement() {
             placeholder="ACC-2024-001"
             required
           />
+          <p className="text-xs text-gray-500 mt-1">Must be unique (e.g., SHELL-GOV-2024-002, TOTAL-FLEET-001)</p>
         </div>
         <div>
           <Label htmlFor="creditLimit">Credit Limit (KSh)</Label>
@@ -754,7 +835,7 @@ export function FuelManagement() {
                   <SelectItem value="all">All Vehicles</SelectItem>
                   {vehicles.map(vehicle => (
                     <SelectItem key={vehicle.id} value={vehicle.id}>
-                      {vehicle.gkNumber} - {vehicle.make} {vehicle.model}
+                      {vehicle.registration || vehicle.gkNumber || 'Unknown'} - {vehicle.make} {vehicle.model}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -791,7 +872,12 @@ export function FuelManagement() {
                       <div className="flex items-center justify-between mb-4">
                         <div>
                           <h3 className="font-semibold">
-                            {vehicle ? `${vehicle.gkNumber} - ${vehicle.make} ${vehicle.model}` : 'Unknown Vehicle'}
+                            {vehicle ? 
+                              `${vehicle.registration || vehicle.gkNumber || 'Unknown'} - ${vehicle.make} ${vehicle.model}` : 
+                              record.vehicle_registration ? 
+                                `${record.vehicle_registration} - Unknown Vehicle` : 
+                                'Unknown Vehicle'
+                            }
                           </h3>
                           <p className="text-sm text-gray-600">
                             {record.fuel_station && `${record.fuel_station} • `}
@@ -888,7 +974,15 @@ export function FuelManagement() {
                       </div>
                       <div>
                         <p className="text-sm text-gray-600">Current Balance</p>
-                        <p className="font-medium text-green-600">KSh {account.current_balance.toLocaleString()}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-green-600">KSh {account.current_balance.toLocaleString()}</p>
+                          {recentDeduction && recentDeduction.accountId === account.id && (
+                            <div className="flex items-center gap-1 bg-red-50 text-red-600 px-2 py-1 rounded text-xs">
+                              <span>-KSh {recentDeduction.amount.toLocaleString()}</span>
+                              <span className="text-xs">just deducted</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                       <div>
                         <p className="text-sm text-gray-600">Initial Deposit</p>

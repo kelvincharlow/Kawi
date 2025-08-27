@@ -30,10 +30,16 @@ export const formatDate = (dateString: string) => {
 };
 
 export const formatCurrency = (amount: number) => {
+  if (typeof amount !== 'number' || isNaN(amount)) {
+    return 'KES 0';
+  }
   return `KES ${amount.toLocaleString()}`;
 };
 
 export const formatNumber = (num: number) => {
+  if (typeof num !== 'number' || isNaN(num)) {
+    return '0';
+  }
   return num.toLocaleString();
 };
 

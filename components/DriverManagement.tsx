@@ -124,24 +124,39 @@ export function DriverManagement() {
     e.preventDefault();
     
     try {
+      // Map camelCase form fields to snake_case database fields
       const driverData = {
-        ...driverFormData
+        // Required fields
+        name: driverFormData.name,
+        license_number: driverFormData.licenseNumber,
+        
+        // Optional fields with correct database field names
+        employee_id: driverFormData.employeeId,
+        license_expiry_date: driverFormData.licenseExpiryDate || null,
+        phone: driverFormData.phone,
+        email: driverFormData.email,
+        department: driverFormData.department,
+        status: driverFormData.status,
+        date_joined: driverFormData.dateJoined || null,
+        notes: driverFormData.notes
       };
 
-      await apiService.createDriver(driverData);
+      console.log('👤 Submitting driver data:', driverData);
+      const result = await apiService.createDriver(driverData);
       
-      setIsAddDriverDialogOpen(false);
-      resetDriverForm();
-      await fetchAllData();
-      
-      toast.success('Driver created successfully!');
-    } catch (error) {
-      console.info('Driver creation completed');
-      
-      setIsAddDriverDialogOpen(false);
-      resetDriverForm();
-      await fetchAllData();
-      toast.success('Driver created successfully!');
+      if (result.success) {
+        console.log('✅ Driver created successfully');
+        setIsAddDriverDialogOpen(false);
+        resetDriverForm();
+        await fetchAllData();
+        toast.success('Driver created successfully!');
+      } else {
+        console.error('❌ Driver creation failed:', result.error);
+        toast.error(`Failed to create driver: ${result.error}`);
+      }
+    } catch (error: any) {
+      console.error('❌ Unexpected error creating driver:', error);
+      toast.error(`Error creating driver: ${error.message}`);
     }
   };
 
@@ -624,64 +639,64 @@ export function DriverManagement() {
                     <CardContent className="p-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         <div className="p-4 bg-white/60 rounded-lg border border-gray-200 shadow-sm">
-                          <p className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                          <div className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                             <div className="p-1 bg-blue-100 rounded">
                               <Users className="h-3 w-3 text-blue-600" />
                             </div>
                             Department
-                          </p>
+                          </div>
                           <p className="font-medium text-gray-900">{driver.department}</p>
                         </div>
                         <div className="p-4 bg-white/60 rounded-lg border border-gray-200 shadow-sm">
-                          <p className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                          <div className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                             <div className="p-1 bg-green-100 rounded">
                               <Car className="h-3 w-3 text-green-600" />
                             </div>
                             License
-                          </p>
+                          </div>
                           <p className="font-medium text-gray-900">{driver.licenseNumber}</p>
                           <p className="text-xs text-gray-600 mt-1">Class {driver.licenseClass}</p>
                         </div>
                         <div className="p-4 bg-white/60 rounded-lg border border-gray-200 shadow-sm">
-                          <p className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                          <div className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                             <div className="p-1 bg-orange-100 rounded">
                               <Calendar className="h-3 w-3 text-orange-600" />
                             </div>
                             License Expiry
-                          </p>
+                          </div>
                           <p className={`font-medium ${licenseExpiringSoon ? 'text-orange-600' : 'text-gray-900'}`}>
                             {new Date(driver.licenseExpiryDate).toLocaleDateString()}
                           </p>
                         </div>
                         <div className="p-4 bg-white/60 rounded-lg border border-gray-200 shadow-sm">
-                          <p className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                          <div className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                             <div className="p-1 bg-purple-100 rounded">
                               <Phone className="h-3 w-3 text-purple-600" />
                             </div>
                             Phone
-                          </p>
+                          </div>
                           <p className="font-medium text-gray-900">{driver.phone}</p>
                         </div>
                         {driver.email && (
                           <div className="p-4 bg-white/60 rounded-lg border border-gray-200 shadow-sm">
-                            <p className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                            <div className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                               <div className="p-1 bg-cyan-100 rounded">
                                 <Mail className="h-3 w-3 text-cyan-600" />
                               </div>
                               Email
-                            </p>
+                            </div>
                             <p className="font-medium text-gray-900 truncate" title={driver.email}>
                               {driver.email}
                             </p>
                           </div>
                         )}
                         <div className="p-4 bg-white/60 rounded-lg border border-gray-200 shadow-sm">
-                          <p className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                          <div className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                             <div className="p-1 bg-indigo-100 rounded">
                               <Calendar className="h-3 w-3 text-indigo-600" />
                             </div>
                             Date Joined
-                          </p>
+                          </div>
                           <p className="font-medium text-gray-900">
                             {new Date(driver.dateJoined).toLocaleDateString()}
                           </p>

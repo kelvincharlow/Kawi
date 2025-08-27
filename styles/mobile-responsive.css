@@ -1,0 +1,349 @@
+/* Mobile Responsiveness Enhancements for Fleet Management System */
+/* This file provides additional mobile-first responsive utilities */
+
+/* Base responsive utilities */
+@layer utilities {
+  /* Mobile-first breakpoint utilities */
+  .mobile-only {
+    @apply block sm:hidden;
+  }
+  
+  .tablet-up {
+    @apply hidden sm:block;
+  }
+  
+  .desktop-up {
+    @apply hidden lg:block;
+  }
+  
+  /* Touch-friendly button sizes */
+  .btn-touch {
+    @apply min-h-[44px] min-w-[44px] touch-manipulation;
+  }
+  
+  /* Mobile-optimized form inputs */
+  .input-mobile {
+    @apply text-base leading-normal; /* Prevents zoom on iOS */
+  }
+  
+  /* Safe area padding for mobile devices */
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  .safe-area-left {
+    padding-left: env(safe-area-inset-left);
+  }
+  
+  .safe-area-right {
+    padding-right: env(safe-area-inset-right);
+  }
+  
+  /* Responsive text sizing */
+  .text-responsive-xs {
+    @apply text-xs sm:text-sm;
+  }
+  
+  .text-responsive-sm {
+    @apply text-sm sm:text-base;
+  }
+  
+  .text-responsive-base {
+    @apply text-sm sm:text-base md:text-lg;
+  }
+  
+  .text-responsive-lg {
+    @apply text-base sm:text-lg md:text-xl;
+  }
+  
+  .text-responsive-xl {
+    @apply text-lg sm:text-xl md:text-2xl;
+  }
+  
+  .text-responsive-2xl {
+    @apply text-xl sm:text-2xl md:text-3xl;
+  }
+  
+  /* Responsive spacing */
+  .space-responsive-sm {
+    @apply space-y-2 sm:space-y-3;
+  }
+  
+  .space-responsive-md {
+    @apply space-y-3 sm:space-y-4 md:space-y-6;
+  }
+  
+  .space-responsive-lg {
+    @apply space-y-4 sm:space-y-6 md:space-y-8;
+  }
+  
+  /* Responsive padding */
+  .p-responsive-sm {
+    @apply p-2 sm:p-3 md:p-4;
+  }
+  
+  .p-responsive-md {
+    @apply p-3 sm:p-4 md:p-6;
+  }
+  
+  .p-responsive-lg {
+    @apply p-4 sm:p-6 md:p-8;
+  }
+  
+  /* Responsive grid columns */
+  .grid-responsive-1 {
+    @apply grid-cols-1;
+  }
+  
+  .grid-responsive-2 {
+    @apply grid-cols-1 sm:grid-cols-2;
+  }
+  
+  .grid-responsive-3 {
+    @apply grid-cols-1 sm:grid-cols-2 lg:grid-cols-3;
+  }
+  
+  .grid-responsive-4 {
+    @apply grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4;
+  }
+  
+  .grid-responsive-5 {
+    @apply grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5;
+  }
+  
+  .grid-responsive-6 {
+    @apply grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6;
+  }
+  
+  /* Mobile table scrolling */
+  .table-mobile {
+    @apply w-full overflow-x-auto;
+  }
+  
+  .table-mobile table {
+    @apply min-w-full;
+  }
+  
+  .table-mobile th,
+  .table-mobile td {
+    @apply whitespace-nowrap text-sm;
+  }
+  
+  /* Mobile card layouts */
+  .card-mobile {
+    @apply w-full rounded-lg shadow-sm border border-gray-200 bg-white;
+  }
+  
+  .card-mobile-header {
+    @apply px-4 py-3 border-b border-gray-200;
+  }
+  
+  .card-mobile-content {
+    @apply p-4;
+  }
+  
+  /* Mobile form layouts */
+  .form-mobile {
+    @apply space-y-4;
+  }
+  
+  .form-mobile .form-group {
+    @apply space-y-2;
+  }
+  
+  .form-mobile label {
+    @apply block text-sm font-medium text-gray-700;
+  }
+  
+  .form-mobile input,
+  .form-mobile select,
+  .form-mobile textarea {
+    @apply w-full text-base leading-normal; /* Prevents zoom on iOS */
+  }
+  
+  /* Mobile navigation */
+  .nav-mobile {
+    @apply flex overflow-x-auto space-x-1 p-1;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* Internet Explorer 10+ */
+  }
+  
+  .nav-mobile::-webkit-scrollbar {
+    display: none; /* WebKit */
+  }
+  
+  .nav-mobile-item {
+    @apply flex-shrink-0 whitespace-nowrap;
+  }
+  
+  /* Mobile modal optimizations */
+  .modal-mobile {
+    @apply max-h-[90vh] overflow-y-auto;
+  }
+  
+  .modal-mobile-content {
+    @apply p-4 sm:p-6;
+  }
+  
+  /* Mobile-specific animations */
+  .slide-up-mobile {
+    @apply transform transition-transform duration-300 ease-in-out translate-y-full;
+  }
+  
+  .slide-up-mobile.active {
+    @apply translate-y-0;
+  }
+  
+  /* Mobile keyboard navigation */
+  .focus-mobile {
+    @apply focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded;
+  }
+  
+  /* Mobile accessibility */
+  .sr-only-mobile {
+    @apply sm:not-sr-only sr-only;
+  }
+  
+  /* Mobile viewport height utilities */
+  .h-screen-mobile {
+    height: 100vh;
+    height: 100dvh; /* Dynamic viewport height */
+  }
+  
+  .min-h-screen-mobile {
+    min-height: 100vh;
+    min-height: 100dvh; /* Dynamic viewport height */
+  }
+}
+
+/* Mobile-specific component overrides */
+@media (max-width: 768px) {
+  /* Ensure dialogs don't exceed viewport */
+  .dialog-content {
+    @apply max-w-[95vw] max-h-[95vh] overflow-y-auto;
+  }
+  
+  /* Mobile-friendly tabs */
+  .tabs-list {
+    @apply overflow-x-auto;
+  }
+  
+  .tabs-trigger {
+    @apply flex-shrink-0 whitespace-nowrap;
+  }
+  
+  /* Mobile table improvements */
+  .table-container {
+    @apply overflow-x-auto -mx-4 px-4;
+  }
+  
+  /* Mobile form improvements */
+  .form-grid {
+    @apply grid-cols-1 gap-4;
+  }
+  
+  /* Mobile button improvements */
+  .button-group {
+    @apply flex-col space-y-2 space-x-0;
+  }
+  
+  .button-group .button {
+    @apply w-full;
+  }
+}
+
+/* Landscape mobile optimizations */
+@media (max-height: 500px) and (orientation: landscape) {
+  .landscape-mobile {
+    @apply text-sm;
+  }
+  
+  .landscape-mobile .header {
+    @apply py-2;
+  }
+  
+  .landscape-mobile .modal {
+    @apply max-h-[90vh];
+  }
+}
+
+/* High DPI / Retina display optimizations */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .retina-border {
+    border-width: 0.5px;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .motion-safe {
+    @apply transition-none;
+  }
+  
+  .animate-spin {
+    animation: none;
+  }
+  
+  .animate-bounce {
+    animation: none;
+  }
+}
+
+/* Dark mode mobile optimizations */
+@media (prefers-color-scheme: dark) {
+  .dark-mobile {
+    @apply bg-gray-900 text-white;
+  }
+  
+  .dark-mobile .card {
+    @apply bg-gray-800 border-gray-700;
+  }
+  
+  .dark-mobile .input {
+    @apply bg-gray-800 border-gray-600 text-white;
+  }
+}
+
+/* Print styles for mobile */
+@media print {
+  .print-hidden {
+    @apply hidden;
+  }
+  
+  .mobile-only {
+    @apply hidden;
+  }
+  
+  .print-mobile {
+    @apply text-sm;
+  }
+}
+
+/* Custom scrollbar for mobile webkit browsers */
+@supports (-webkit-overflow-scrolling: touch) {
+  .scroll-smooth {
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 2px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.3);
+  }
+}

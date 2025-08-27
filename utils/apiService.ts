@@ -1,17 +1,14 @@
-import { projectId, publicAnonKey } from './supabase/info';
+import { supabase, checkDatabaseConnection } from './supabase/client';
 import { localStorageManager } from './localStorage';
 import {
   mockVehicles,
   mockDrivers,
   mockWorkTickets,
   mockFuelRecords,
-  mockBulkAccounts,
   mockMaintenanceRecords,
   mockDashboardStats,
   shouldUseMockData
 } from './mockData';
-
-const API_BASE = `https://${projectId}.supabase.co/functions/v1/server`;
 
 interface ApiResponse<T> {
   success: boolean;
@@ -22,176 +19,52 @@ interface ApiResponse<T> {
 class ApiService {
   private useMockData: boolean = false;
   private connectionAttempted: boolean = false;
+  private dbConnectionStatus: boolean = false;
 
   constructor() {
-    // Automatically use mock data in certain environments
-    this.useMockData = shouldUseMockData();
+    this.useMockData = false;
+    this.initializeConnection();
   }
 
-  private async makeRequest<T>(endpoint: string, options?: RequestInit): Promise<ApiResponse<T>> {
-    // If we're forced to use mock data, return mock immediately
-    if (this.useMockData && this.connectionAttempted) {
-      return this.getMockResponse<T>(endpoint);
-    }
-
-    try {
-      const response = await fetch(`${API_BASE}/${endpoint}`, {
-        headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-          'Content-Type': 'application/json',
-          ...options?.headers
-        },
-        ...options
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        return { success: true, data };
-      } else {
-        // Only log detailed errors for non-404 responses or in development
-        if (response.status !== 404 || process.env.NODE_ENV === 'development') {
-          console.info(`API endpoint ${endpoint} not available (${response.status}), using demo data`);
-        }
-        return this.getMockResponse<T>(endpoint);
-      }
-    } catch (error) {
-      // Only log the first connection failure to avoid spam
-      if (!this.connectionAttempted) {
-        console.info('Server connection unavailable, switching to demo mode with sample data');
-        this.connectionAttempted = true;
-      }
+  private async initializeConnection() {
+    const forceMockData = shouldUseMockData();
+    if (forceMockData) {
+      console.log('🧪 Using mock data as configured (forced)');
       this.useMockData = true;
-      return this.getMockResponse<T>(endpoint);
+      return;
     }
-  }
 
-  private async getMockResponse<T>(endpoint: string): Promise<ApiResponse<T>> {
-    // Only log in development mode to reduce console noise
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`Using demo data for endpoint: ${endpoint}`);
-    }
+    console.log('🔌 Attempting to connect to Supabase database...');
+    this.dbConnectionStatus = await checkDatabaseConnection();
+    this.connectionAttempted = true;
     
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 200));
-
-    switch (endpoint) {
-      case 'health':
-        return {
-          success: true,
-          data: {
-            success: true,
-            message: 'Mock server is running',
-            timestamp: new Date().toISOString(),
-            endpoint: endpoint
-          } as T
-        };
-
-      case 'dashboard-stats':
-        return {
-          success: true,
-          data: { stats: mockDashboardStats } as T
-        };
-
-      case 'vehicles':
-        return {
-          success: true,
-          data: { vehicles: mockVehicles } as T
-        };
-
-      case 'drivers':
-        return {
-          success: true,
-          data: { drivers: mockDrivers } as T
-        };
-
-      case 'work-tickets':
-        return {
-          success: true,
-          data: { tickets: mockWorkTickets } as T
-        };
-
-      case 'fuel-records':
-        return {
-          success: true,
-          data: { records: mockFuelRecords } as T
-        };
-
-      case 'bulk-accounts':
-        return {
-          success: true,
-          data: { accounts: mockBulkAccounts } as T
-        };
-
-      case 'maintenance-records':
-        return {
-          success: true,
-          data: { records: mockMaintenanceRecords } as T
-        };
-
-      default:
-        return {
-          success: false,
-          error: `Mock data not available for endpoint: ${endpoint}`
-        };
-    }
-  }
-
-  // Health check
-  async testConnection(): Promise<boolean> {
-    try {
-      const response = await this.makeRequest<any>('health');
-      if (response.success && response.data?.success) {
-        // Connected to real server
-        this.useMockData = false;
-        return true;
-      } else {
-        // Using mock data (which is also successful for our purposes)
-        return true;
-      }
-    } catch (error) {
-      // Gracefully handle connection test failures
-      if (!this.connectionAttempted) {
-        console.info('Server connection test completed - using demo mode');
-      }
+    if (this.dbConnectionStatus) {
+      console.log('✅ Connected to Supabase database successfully');
+      this.useMockData = false;
+    } else {
+      console.log('❌ Failed to connect to database, falling back to mock data');
       this.useMockData = true;
-      this.connectionAttempted = true;
-      return true; // Return true because mock data is available
     }
   }
 
-  // Dashboard stats
-  async getDashboardStats() {
-    if (this.useMockData) {
-      // Calculate dynamic stats from current mock data
-      const pendingTickets = mockWorkTickets.filter(ticket => ticket.status === 'pending').length;
-      
-      return {
-        totalVehicles: mockVehicles.length,
-        totalDrivers: mockDrivers.length,
-        totalFuelRecords: mockFuelRecords.length,
-        totalMaintenanceRecords: mockMaintenanceRecords.length,
-        totalWorkTickets: mockWorkTickets.length,
-        pendingWorkTickets: pendingTickets,
-        lastUpdated: new Date().toISOString()
-      };
-    }
-    
-    const response = await this.makeRequest<any>('dashboard-stats');
-    return response.success ? response.data?.stats : {
-      totalVehicles: 0,
-      totalDrivers: 0,
-      totalFuelRecords: 0,
-      totalMaintenanceRecords: 0,
-      totalWorkTickets: 0,
-      pendingWorkTickets: 0,
-      lastUpdated: new Date().toISOString()
-    };
-  }
-
-  // Vehicles
   async getVehicles() {
-    const response = await this.makeRequest<any>('vehicles');
-    return response.success ? response.data?.vehicles : mockVehicles;
+    if (this.useMockData) {
+      return mockVehicles;
+    }
+
+    try {
+      // Use created_at column which we confirmed exists
+      const { data, error } = await supabase.from('vehicles').select('*').order('created_at', { ascending: false });
+      if (error) {
+        console.warn('Vehicles query error:', error.message);
+        throw error;
+      }
+      console.log(`✅ Fetched ${data?.length || 0} vehicles from database`);
+      return data || mockVehicles;
+    } catch (error) {
+      console.info('Failed to fetch vehicles from database, using mock data:', error.message);
+      return mockVehicles;
+    }
   }
 
   async createVehicle(vehicleData: any) {
@@ -199,26 +72,49 @@ class ApiService {
       const newVehicle = {
         id: `vehicle-${Date.now()}`,
         ...vehicleData,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
       mockVehicles.push(newVehicle);
-      // Save to localStorage for persistence
       localStorageManager.saveVehicles(mockVehicles);
-      return { success: true, vehicle: newVehicle };
+      return { success: true, data: newVehicle };
     }
 
-    const response = await this.makeRequest<any>('vehicles', {
-      method: 'POST',
-      body: JSON.stringify(vehicleData)
-    });
-    return response.data;
+    try {
+      console.log('🚗 Creating vehicle with data:', vehicleData);
+      const { data, error } = await supabase.from('vehicles').insert(vehicleData).select().single();
+      if (error) {
+        console.error('❌ Vehicle creation failed:', error.message);
+        throw error;
+      }
+      console.log('✅ Vehicle created successfully:', data);
+      return { success: true, data: data };
+    } catch (error: any) {
+      console.error('❌ Vehicle creation error:', error.message);
+      return { 
+        success: false, 
+        error: error.message || 'Failed to create vehicle'
+      };
+    }
   }
 
-  // Drivers
   async getDrivers() {
-    const response = await this.makeRequest<any>('drivers');
-    return response.success ? response.data?.drivers : mockDrivers;
+    if (this.useMockData) {
+      return mockDrivers;
+    }
+
+    try {
+      const { data, error } = await supabase.from('drivers').select('*').order('created_at', { ascending: false });
+      if (error) {
+        console.warn('Drivers query error:', error.message);
+        throw error;
+      }
+      console.log(`✅ Fetched ${data?.length || 0} drivers from database`);
+      return data || mockDrivers;
+    } catch (error) {
+      console.info('Failed to fetch drivers from database, using mock data:', error.message);
+      return mockDrivers;
+    }
   }
 
   async createDriver(driverData: any) {
@@ -226,104 +122,45 @@ class ApiService {
       const newDriver = {
         id: `driver-${Date.now()}`,
         ...driverData,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
       mockDrivers.push(newDriver);
-      // Save to localStorage for persistence
       localStorageManager.saveDrivers(mockDrivers);
-      return { success: true, driver: newDriver };
+      return { success: true, data: newDriver };
     }
 
-    const response = await this.makeRequest<any>('drivers', {
-      method: 'POST',
-      body: JSON.stringify(driverData)
-    });
-    return response.data;
-  }
-
-  // Work Tickets
-  async getWorkTickets() {
-    const response = await this.makeRequest<any>('work-tickets');
-    return response.success ? response.data?.tickets : mockWorkTickets;
-  }
-
-  async createWorkTicket(ticketData: any) {
-    if (this.useMockData) {
-      const newTicket = {
-        id: `ticket-${Date.now()}`,
-        ...ticketData,
-        status: 'pending',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        approved_by: null,
-        approved_at: null,
-        rejected_by: null,
-        rejected_at: null,
-        rejection_reason: null
+    try {
+      console.log('👤 Creating driver with data:', driverData);
+      const { data, error } = await supabase.from('drivers').insert(driverData).select().single();
+      if (error) {
+        console.error('❌ Driver creation failed:', error.message);
+        throw error;
+      }
+      console.log('✅ Driver created successfully:', data);
+      return { success: true, data: data };
+    } catch (error: any) {
+      console.error('❌ Driver creation error:', error.message);
+      return { 
+        success: false, 
+        error: error.message || 'Failed to create driver'
       };
-      mockWorkTickets.push(newTicket);
-      // Save to localStorage for persistence
-      localStorageManager.saveWorkTickets(mockWorkTickets);
-      return { success: true, ticket: newTicket };
     }
-
-    const response = await this.makeRequest<any>('work-tickets', {
-      method: 'POST',
-      body: JSON.stringify(ticketData)
-    });
-    return response.data;
   }
 
-  async approveWorkTicket(ticketId: string, approvalData: any) {
-    if (this.useMockData) {
-      const ticket = mockWorkTickets.find(t => t.id === ticketId);
-      if (ticket) {
-        ticket.status = 'approved';
-        ticket.approved_by = approvalData.approved_by;
-        ticket.approved_at = approvalData.approved_at;
-        ticket.updated_at = new Date().toISOString();
-        
-        // Save updated tickets to localStorage for persistence
-        localStorageManager.saveWorkTickets(mockWorkTickets);
-      }
-      return { success: true, ticket };
-    }
-
-    const response = await this.makeRequest<any>(`work-tickets/${ticketId}/approve`, {
-      method: 'POST',
-      body: JSON.stringify(approvalData)
-    });
-    return response.data;
-  }
-
-  async rejectWorkTicket(ticketId: string, rejectionData: any) {
-    if (this.useMockData) {
-      const ticket = mockWorkTickets.find(t => t.id === ticketId);
-      if (ticket) {
-        ticket.status = 'rejected';
-        ticket.rejected_by = rejectionData.rejected_by;
-        ticket.rejected_at = rejectionData.rejected_at;
-        ticket.rejection_reason = rejectionData.rejection_reason;
-        ticket.updated_at = new Date().toISOString();
-        
-        // Save updated tickets to localStorage for persistence
-        localStorageManager.saveWorkTickets(mockWorkTickets);
-      }
-      return { success: true, ticket };
-    }
-
-    const response = await this.makeRequest<any>(`work-tickets/${ticketId}/reject`, {
-      method: 'POST',
-      body: JSON.stringify(rejectionData)
-    });
-    return response.data;
-  }
-
-  // Fuel Records
   async getFuelRecords() {
-    const response = await this.makeRequest<any>('fuel-records');
-    return response.success ? response.data?.records : mockFuelRecords;
+    if (this.useMockData) {
+      return mockFuelRecords;
+    }
+
+    try {
+      const { data, error } = await supabase.from('fuel_records').select('*').order('date', { ascending: false });
+      if (error) throw error;
+      return data || mockFuelRecords;
+    } catch (error) {
+      console.info('Using mock fuel records data');
+      return mockFuelRecords;
+    }
   }
 
   async createFuelRecord(fuelData: any) {
@@ -331,89 +168,104 @@ class ApiService {
       const newRecord = {
         id: `fuel-${Date.now()}`,
         ...fuelData,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
       mockFuelRecords.push(newRecord);
-      // Save to localStorage for persistence
       localStorageManager.saveFuelRecords(mockFuelRecords);
-      
-      // Simulate bulk account deduction
-      if (fuelData.bulk_account_id) {
-        const account = mockBulkAccounts.find(a => a.id === fuelData.bulk_account_id);
-        if (account) {
-          account.current_balance -= fuelData.total_cost;
-          account.updated_at = new Date().toISOString();
-          // Save updated bulk accounts
-          localStorageManager.saveBulkAccounts(mockBulkAccounts);
-        }
+      return { success: true, data: newRecord };
+    }
+
+    try {
+      console.log('⛽ Creating fuel record with data:', fuelData);
+      const { data, error } = await supabase.from('fuel_records').insert(fuelData).select().single();
+      if (error) {
+        console.error('❌ Fuel record creation failed:', error.message);
+        throw error;
+      }
+      console.log('✅ Fuel record created successfully in database:', data);
+      return { success: true, data: data };
+    } catch (error: any) {
+      console.error('❌ Fuel record creation error:', error.message);
+      return { 
+        success: false, 
+        error: error.message || 'Failed to create fuel record'
+      };
+    }
+  }
+
+  async getWorkTickets() {
+    if (this.useMockData) {
+      return mockWorkTickets;
+    }
+
+    try {
+      const { data, error } = await supabase.from('work_tickets').select('*').order('created_at', { ascending: false });
+      if (error) {
+        console.warn('Work tickets query error:', error.message);
+        throw error;
+      }
+      console.log(`✅ Fetched ${data?.length || 0} work tickets from database`);
+      return data || mockWorkTickets;
+    } catch (error) {
+      console.info('Failed to fetch work tickets from database, using mock data:', error.message);
+      return mockWorkTickets;
+    }
+  }
+
+  async createWorkTicket(ticketData: any) {
+    if (this.useMockData) {
+      const newTicket = {
+        id: `ticket-${Date.now()}`,
+        ...ticketData,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      mockWorkTickets.push(newTicket);
+      localStorageManager.saveWorkTickets(mockWorkTickets);
+      return { success: true, ticket: newTicket };
+    }
+
+    try {
+      const { data, error } = await supabase.from('work_tickets').insert(ticketData).select().single();
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.info('Work ticket creation completed');
+      return { success: true };
+    }
+  }
+
+  async getMaintenanceRecords() {
+    if (this.useMockData) {
+      return mockMaintenanceRecords;
+    }
+
+    try {
+      console.log('🔍 Fetching maintenance records from database...');
+      const { data, error } = await supabase.from('maintenance_records').select('*').order('date', { ascending: false });
+      if (error) {
+        console.error('❌ Error fetching maintenance records:', error.message);
+        throw error;
       }
       
-      return { success: true, record: newRecord };
+      console.log(`✅ Fetched ${data?.length || 0} maintenance records from database`);
+      if (data && data.length > 0) {
+        console.log('📋 Sample maintenance record structure:', Object.keys(data[0]));
+        console.log('📊 Sample record with vendor field:', {
+          id: data[0].id,
+          vendor: data[0].vendor,
+          service_provider: data[0].service_provider,
+          serviceProvider: data[0].serviceProvider
+        });
+      }
+      
+      return data || mockMaintenanceRecords;
+    } catch (error) {
+      console.error('❌ Failed to fetch maintenance records:', error);
+      console.info('Using mock maintenance records data');
+      return mockMaintenanceRecords;
     }
-
-    const response = await this.makeRequest<any>('fuel-records', {
-      method: 'POST',
-      body: JSON.stringify(fuelData)
-    });
-    return response.data;
-  }
-
-  // Bulk Accounts
-  async getBulkAccounts() {
-    const response = await this.makeRequest<any>('bulk-accounts');
-    return response.success ? response.data?.accounts : mockBulkAccounts;
-  }
-
-  async createBulkAccount(accountData: any) {
-    if (this.useMockData) {
-      const newAccount = {
-        id: `bulk-${Date.now()}`,
-        ...accountData,
-        current_balance: accountData.initial_balance,
-        status: 'active',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-      mockBulkAccounts.push(newAccount);
-      // Save to localStorage for persistence
-      localStorageManager.saveBulkAccounts(mockBulkAccounts);
-      return { success: true, account: newAccount };
-    }
-
-    const response = await this.makeRequest<any>('bulk-accounts', {
-      method: 'POST',
-      body: JSON.stringify(accountData)
-    });
-    return response.data;
-  }
-
-  // Maintenance Records
-  async getMaintenanceRecords() {
-    const response = await this.makeRequest<any>('maintenance-records');
-    const records = response.success ? response.data?.records : mockMaintenanceRecords;
-    
-    // Transform snake_case to camelCase to match component interface
-    return records.map((record: any) => ({
-      id: record.id,
-      vehicleId: record.vehicle_id,
-      maintenanceType: record.maintenance_type === 'regular' ? 'routine' : record.maintenance_type,
-      serviceProvider: record.service_provider || '',
-      workDescription: record.description || '',
-      partsReplaced: Array.isArray(record.parts_replaced) ? record.parts_replaced : [],
-      cost: record.cost || 0,
-      laborCost: record.labor_cost || 0,
-      partsCost: record.parts_cost || 0,
-      mileage: record.odometer_reading || 0,
-      date: record.service_date || record.date,
-      nextServiceDate: record.next_service_date,
-      nextServiceMileage: record.next_service_mileage || 0,
-      status: record.status === 'completed' ? 'completed' : record.status || 'scheduled',
-      priority: record.priority || 'medium',
-      warrantyInfo: record.warranty_info || '',
-      notes: record.notes || '',
-      createdAt: record.created_at
-    }));
   }
 
   async createMaintenanceRecord(maintenanceData: any) {
@@ -421,32 +273,291 @@ class ApiService {
       const newRecord = {
         id: `maint-${Date.now()}`,
         ...maintenanceData,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
       mockMaintenanceRecords.push(newRecord);
-      // Save to localStorage for persistence
       localStorageManager.saveMaintenanceRecords(mockMaintenanceRecords);
-      return { success: true, record: newRecord };
+      return { success: true, data: newRecord };
     }
 
-    const response = await this.makeRequest<any>('maintenance-records', {
-      method: 'POST',
-      body: JSON.stringify(maintenanceData)
-    });
-    return response.data;
+    try {
+      console.log('🔧 Creating maintenance record with data:', maintenanceData);
+      console.log('🔑 Fields being sent:', Object.keys(maintenanceData));
+      
+      const { data, error } = await supabase.from('maintenance_records').insert(maintenanceData).select().single();
+      
+      if (error) {
+        console.error('❌ Maintenance record creation failed:', error.message);
+        console.error('📋 Error details:', error);
+        
+        // Log helpful information about column errors
+        if (error.message.includes('column') && error.message.includes('does not exist')) {
+          const missingColumn = error.message.match(/column "([^"]+)"/)?.[1];
+          console.log(`💡 Missing column detected: ${missingColumn}`);
+          console.log('🔍 Available fields in your table might be different.');
+          console.log('📝 Consider checking your table structure in Supabase dashboard.');
+        }
+        
+        throw error;
+      }
+      
+      console.log('✅ Maintenance record created successfully in database:', data);
+      return { success: true, data: data };
+    } catch (error: any) {
+      console.error('❌ Maintenance record creation error:', error.message);
+      return { 
+        success: false, 
+        error: error.message || 'Failed to create maintenance record'
+      };
+    }
   }
 
-  // Get current mode
+  async getDashboardStats() {
+    if (this.useMockData) {
+      return mockDashboardStats;
+    }
+
+    try {
+      const vehicles = await this.getVehicles();
+      const drivers = await this.getDrivers();
+      const fuelRecords = await this.getFuelRecords();
+      const maintenanceRecords = await this.getMaintenanceRecords();
+      const workTickets = await this.getWorkTickets();
+
+      return {
+        totalVehicles: vehicles.length,
+        totalDrivers: drivers.length,
+        totalFuelRecords: fuelRecords.length,
+        totalMaintenanceRecords: maintenanceRecords.length,
+        totalWorkTickets: workTickets.length,
+        lastUpdated: new Date().toISOString()
+      };
+    } catch (error) {
+      console.info('Using mock dashboard stats');
+      return mockDashboardStats;
+    }
+  }
+
   isUsingMockData(): boolean {
     return this.useMockData;
   }
 
-  // Force mock mode (for testing)
+  async waitForInitialization(): Promise<void> {
+    // If connection has already been attempted, return immediately
+    if (this.connectionAttempted) {
+      return Promise.resolve();
+    }
+    
+    // Wait for initialization to complete
+    return new Promise((resolve) => {
+      const checkInterval = setInterval(() => {
+        if (this.connectionAttempted) {
+          clearInterval(checkInterval);
+          resolve();
+        }
+      }, 50); // Check every 50ms
+      
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        resolve();
+      }, 10000);
+    });
+  }
+
+  async getBulkAccounts() {
+    if (this.useMockData) {
+      return [
+        {
+          id: 'bulk-1',
+          account_name: 'Shell Corporate Account',
+          supplier_name: 'Shell Kenya',
+          account_number: 'SH001234',
+          current_balance: 150000,
+          initial_balance: 200000,
+          credit_limit: 300000,
+          status: 'active',
+          contact_person: 'John Manager',
+          contact_phone: '+254700123456',
+          contact_email: 'corporate@shell.co.ke',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+      ];
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('bulk_accounts')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.log('Bulk accounts query error:', error.message);
+        throw error;
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('❌ Bulk accounts query failed:', error);
+      return [];
+    }
+  }
+
+  async createBulkAccount(accountData: any) {
+    if (this.useMockData) {
+      const newAccount = {
+        id: `bulk-${Date.now()}`,
+        ...accountData,
+        current_balance: accountData.initial_balance || 0,
+        status: 'active',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      console.log('✅ Mock bulk account created:', newAccount);
+      return { success: true, data: newAccount };
+    }
+
+    try {
+      // First check if account number already exists
+      const { data: existingAccount, error: checkError } = await supabase
+        .from('bulk_accounts')
+        .select('account_number')
+        .eq('account_number', accountData.account_number)
+        .single();
+
+      if (existingAccount) {
+        return { 
+          success: false, 
+          error: `Account number "${accountData.account_number}" already exists. Please use a different account number.`
+        };
+      }
+
+      const { data, error } = await supabase
+        .from('bulk_accounts')
+        .insert([{
+          account_name: accountData.account_name,
+          supplier_name: accountData.supplier_name || accountData.provider, // Handle both field names
+          account_number: accountData.account_number,
+          contact_person: accountData.contact_person,
+          contact_email: accountData.contact_email,
+          contact_phone: accountData.contact_phone,
+          initial_balance: accountData.initial_balance || 0,
+          current_balance: accountData.initial_balance || 0,
+          credit_limit: accountData.credit_limit || 0,
+          fuel_types: accountData.fuel_types || 'petrol,diesel', // Add fuel_types field
+          status: 'active'
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        console.log('❌ Bulk account creation error:', error.message);
+        
+        // Handle specific error cases
+        if (error.code === '23505' && error.message.includes('account_number')) {
+          return { 
+            success: false, 
+            error: `Account number "${accountData.account_number}" already exists. Please use a different account number.`
+          };
+        }
+        
+        return { 
+          success: false, 
+          error: error.message || 'Failed to create bulk account'
+        };
+      }
+
+      console.log('✅ Bulk account created successfully in database:', data);
+      return { success: true, data };
+    } catch (error) {
+      console.error('❌ Bulk account creation failed:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to create bulk account'
+      };
+    }
+  }
+
+  async deductFromBulkAccount(accountId: string, amount: number, description?: string) {
+    if (this.useMockData) {
+      console.log(`Mock deduction: KSh ${amount} from account ${accountId}`);
+      return { success: true, newBalance: Math.max(0, 50000 - amount) };
+    }
+
+    try {
+      console.log(`💳 Starting bulk account deduction: Account ID: ${accountId}, Amount: KSh ${amount}`);
+      
+      // First, get current balance with explicit field selection
+      const { data: account, error: fetchError } = await supabase
+        .from('bulk_accounts')
+        .select('id, current_balance, account_name')
+        .eq('id', accountId)
+        .single();
+
+      if (fetchError) {
+        console.error('❌ Account fetch error:', fetchError);
+        return { success: false, error: `Account not found: ${fetchError.message}` };
+      }
+
+      if (!account) {
+        console.error('❌ No account data returned');
+        return { success: false, error: 'Account not found' };
+      }
+
+      console.log(`📊 Current account balance: KSh ${account.current_balance} for account: ${account.account_name}`);
+      
+      const newBalance = account.current_balance - amount;
+      
+      if (newBalance < 0) {
+        console.log(`⚠️ Insufficient balance. Available: KSh ${account.current_balance}, Required: KSh ${amount}`);
+        return { success: false, error: `Insufficient balance. Available: KSh ${account.current_balance.toLocaleString()}, Required: KSh ${amount.toLocaleString()}` };
+      }
+
+      // Update the balance with optimistic concurrency control
+      const { data: updateData, error: updateError } = await supabase
+        .from('bulk_accounts')
+        .update({ 
+          current_balance: newBalance,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', accountId)
+        .eq('current_balance', account.current_balance) // Ensure balance hasn't changed
+        .select('current_balance');
+
+      if (updateError) {
+        console.error('❌ Balance update error:', updateError);
+        return { success: false, error: `Failed to update balance: ${updateError.message}` };
+      }
+
+      if (!updateData || updateData.length === 0) {
+        console.error('❌ Balance update failed - concurrent modification detected');
+        return { success: false, error: 'Balance was modified by another transaction. Please try again.' };
+      }
+
+      console.log(`✅ Balance updated successfully. New balance: KSh ${newBalance}`);
+      
+      // Log the transaction (optional - create a transactions table later)
+      if (description) {
+        console.log(`📝 Transaction logged: ${description} - Amount: KSh ${amount}`);
+      }
+
+      return { success: true, newBalance };
+    } catch (error) {
+      console.error('❌ Bulk account deduction failed:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to deduct from account'
+      };
+    }
+  }
+
   setMockMode(useMock: boolean): void {
     this.useMockData = useMock;
   }
 }
 
-// Export singleton instance
-export const apiService = new ApiService();
+// Export the singleton instance
+const apiService = new ApiService();
+export { apiService };

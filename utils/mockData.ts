@@ -5,8 +5,33 @@
 import { localStorageManager } from './localStorage';
 
 export const shouldUseMockData = (): boolean => {
-  // Use mock data if no server is available or in development mode
-  return process.env.NODE_ENV === 'development' || !process.env.REACT_APP_SUPABASE_URL;
+  // Check if we're explicitly forcing mock data
+  const forceMockData = (import.meta as any).env?.VITE_USE_MOCK_DATA === 'true';
+  
+  console.log('🔍 Mock data check:');
+  console.log('- VITE_USE_MOCK_DATA:', (import.meta as any).env?.VITE_USE_MOCK_DATA);
+  console.log('- Force mock data:', forceMockData);
+  
+  if (forceMockData) {
+    console.log('🧪 Force using mock data (VITE_USE_MOCK_DATA=true)');
+    return true;
+  }
+  
+  // Check environment variables for Supabase configuration
+  const hasSupabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || process.env.REACT_APP_SUPABASE_URL;
+  const hasSupabaseKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || process.env.REACT_APP_SUPABASE_ANON_KEY;
+  
+  console.log('- Has Supabase URL:', !!hasSupabaseUrl);
+  console.log('- Has Supabase Key:', !!hasSupabaseKey);
+  
+  // Use mock data only if no Supabase configuration is available
+  if (!hasSupabaseUrl || !hasSupabaseKey) {
+    console.log('❌ No Supabase configuration found, using mock data');
+    return true;
+  }
+  
+  console.log('🔌 Supabase configuration found, attempting database connection');
+  return false; // Try to use database first
 };
 
 export const mockApiResponse = <T>(data: T, delay: number = 200): Promise<T> => {

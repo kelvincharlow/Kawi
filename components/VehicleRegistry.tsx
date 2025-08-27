@@ -12,23 +12,32 @@ import { apiService } from '../utils/apiService';
 
 interface Vehicle {
   id: string;
-  gkNumber: string;
+  // Frontend camelCase properties
+  gkNumber?: string;
   make: string;
   model: string;
   year: number;
-  engineNumber: string;
-  chassisNumber: string;
-  acquisitionDate: string;
+  engineNumber?: string;
+  chassisNumber?: string;
+  acquisitionDate?: string;
   status: 'active' | 'inactive' | 'maintenance' | 'retired';
   department: string;
   location: string;
   color: string;
-  fuelType: string;
-  seatingCapacity: number;
+  fuelType?: string;
+  seatingCapacity?: number;
   equipment: string[];
   notes: string;
   createdAt?: string;
   updatedAt?: string;
+  
+  // Database snake_case properties (for compatibility)
+  registration?: string;
+  engine_number?: string;
+  chassis_number?: string;
+  acquisition_date?: string;
+  fuel_type?: string;
+  seating_capacity?: number;
 }
 
 export function VehicleRegistry() {
@@ -79,20 +88,44 @@ export function VehicleRegistry() {
     e.preventDefault();
     
     try {
+      // Map camelCase form fields to snake_case database fields
       const vehicleData = {
-        ...formData,
-        equipment: formData.equipment.split(',').map(item => item.trim()).filter(item => item)
+        // Required fields
+        make: formData.make,
+        model: formData.model,
+        year: formData.year,
+        
+        // Optional fields with correct database field names
+        registration: formData.gkNumber,
+        engine_number: formData.engineNumber,
+        chassis_number: formData.chassisNumber,
+        acquisition_date: formData.acquisitionDate || null,
+        status: formData.status,
+        department: formData.department,
+        location: formData.location,
+        color: formData.color,
+        fuel_type: formData.fuelType, // Map to snake_case
+        seating_capacity: formData.seatingCapacity, // Map to snake_case
+        equipment: formData.equipment.split(',').map(item => item.trim()).filter(item => item),
+        notes: formData.notes
       };
 
-      await apiService.createVehicle(vehicleData);
-      setIsAddDialogOpen(false);
-      resetForm();
-      await fetchVehicles();
-    } catch (error) {
-      console.info('Vehicle creation completed');
-      setIsAddDialogOpen(false);
-      resetForm();
-      await fetchVehicles();
+      console.log('🚗 Submitting vehicle data:', vehicleData);
+      const result = await apiService.createVehicle(vehicleData);
+      
+      if (result.success) {
+        console.log('✅ Vehicle created successfully');
+        alert('Vehicle created successfully!');
+        setIsAddDialogOpen(false);
+        resetForm();
+        await fetchVehicles();
+      } else {
+        console.error('❌ Vehicle creation failed:', result.error);
+        alert(`Failed to create vehicle: ${result.error}`);
+      }
+    } catch (error: any) {
+      console.error('❌ Unexpected error creating vehicle:', error);
+      alert(`Error creating vehicle: ${error.message}`);
     }
   };
 
@@ -140,19 +173,19 @@ export function VehicleRegistry() {
   const openEditDialog = (vehicle: Vehicle) => {
     setSelectedVehicle(vehicle);
     setFormData({
-      gkNumber: vehicle.gkNumber || '',
+      gkNumber: vehicle.registration || vehicle.gkNumber || '',
       make: vehicle.make || '',
       model: vehicle.model || '',
       year: vehicle.year || new Date().getFullYear(),
-      engineNumber: vehicle.engineNumber || '',
-      chassisNumber: vehicle.chassisNumber || '',
-      acquisitionDate: vehicle.acquisitionDate || '',
+      engineNumber: vehicle.engine_number || vehicle.engineNumber || '',
+      chassisNumber: vehicle.chassis_number || vehicle.chassisNumber || '',
+      acquisitionDate: vehicle.acquisition_date || vehicle.acquisitionDate || '',
       status: vehicle.status || 'active',
       department: vehicle.department || '',
       location: vehicle.location || '',
       color: vehicle.color || '',
-      fuelType: vehicle.fuelType || 'petrol',
-      seatingCapacity: vehicle.seatingCapacity || 5,
+      fuelType: vehicle.fuel_type || vehicle.fuelType || 'petrol',
+      seatingCapacity: vehicle.seating_capacity || vehicle.seatingCapacity || 5,
       equipment: (vehicle.equipment || []).join(', '),
       notes: vehicle.notes || ''
     });
@@ -160,8 +193,8 @@ export function VehicleRegistry() {
   };
 
   const filteredVehicles = vehicles.filter(vehicle => {
-    // Safely handle potentially undefined properties
-    const gkNumber = vehicle.gkNumber || '';
+    // Safely handle potentially undefined properties and include both field formats
+    const gkNumber = vehicle.registration || vehicle.gkNumber || '';
     const make = vehicle.make || '';
     const model = vehicle.model || '';
     const status = vehicle.status || '';
@@ -493,7 +526,7 @@ export function VehicleRegistry() {
                       <Car className="h-6 w-6 text-white" />
                     </div>
                     <div>
-                      <CardTitle className="text-xl text-gray-800">{vehicle.gkNumber || 'Unknown'}</CardTitle>
+                      <CardTitle className="text-xl text-gray-800">{vehicle.registration || vehicle.gkNumber || 'Unknown'}</CardTitle>
                       <p className="text-gray-600 text-sm mt-1">{vehicle.make || 'Unknown'} {vehicle.model || 'Unknown'}</p>
                     </div>
                   </div>
@@ -529,15 +562,15 @@ export function VehicleRegistry() {
                   </div>
                   <div className="bg-gradient-to-br from-yellow-50 to-amber-50 p-4 rounded-lg border border-yellow-200">
                     <p className="text-sm font-medium text-yellow-600 mb-1">Engine Number</p>
-                    <p className="font-semibold text-gray-800 text-sm">{vehicle.engineNumber || 'Not specified'}</p>
+                    <p className="font-semibold text-gray-800 text-sm">{vehicle.engine_number || vehicle.engineNumber || 'Not specified'}</p>
                   </div>
                   <div className="bg-gradient-to-br from-indigo-50 to-blue-50 p-4 rounded-lg border border-indigo-200">
                     <p className="text-sm font-medium text-indigo-600 mb-1">Chassis Number</p>
-                    <p className="font-semibold text-gray-800 text-sm">{vehicle.chassisNumber || 'Not specified'}</p>
+                    <p className="font-semibold text-gray-800 text-sm">{vehicle.chassis_number || vehicle.chassisNumber || 'Not specified'}</p>
                   </div>
                   <div className="bg-gradient-to-br from-orange-50 to-red-50 p-4 rounded-lg border border-orange-200">
                     <p className="text-sm font-medium text-orange-600 mb-1">Fuel Type</p>
-                    <p className="font-semibold text-gray-800 capitalize">{vehicle.fuelType || 'Not specified'}</p>
+                    <p className="font-semibold text-gray-800 capitalize">{vehicle.fuel_type || vehicle.fuelType || 'Not specified'}</p>
                   </div>
                 </div>
                 
